@@ -5,27 +5,27 @@ use std::net::TcpListener;
 use bytes::Bytes;
 
 struct Header {
-   // message_size:i32,
+    message_size:i32,
     correletion_id:i32,
 }
 impl Header {
     fn new(message_size:i32, correletion_id:i32)-> Header {
         Header {
-     //       message_size,
+            message_size,
             correletion_id,
         }
     }
     fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-       // bytes.extend(self.message_size.to_be_bytes());
+        bytes.extend(self.message_size.to_be_bytes());
         bytes.extend(self.correletion_id.to_be_bytes());
         return bytes
     }
     fn from_bytes(bytes:&[u8]) -> Self {
-        //let message_size = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
-        let correletion_id = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let message_size = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let correletion_id = i32::from_be_bytes(bytes[4..8].try_into().unwrap());
         Self{
-          //  message_size,
+            message_size,
             correletion_id
         }
     }
@@ -46,11 +46,18 @@ fn main() {
                 let message_size:i32 = 0;
                 let correletion_id:i32 = 7;
                 let header = Header::new(message_size, correletion_id);
-               match _stream.write(&*header.to_bytes()) {
-                    Ok(_) => println!("response sent to the client"),
-                   Err(_) =>eprintln!("Failed to write to connection")
-
-               }
+                match header.to_bytes().try_into() {
+                    Ok(array) => {
+                        let array:[u8;8] = array;
+                        match _stream.write(&array) {
+                            Ok(_) => println!("response sent to the client"),
+                            Err(_) => eprintln!("Failed to write to connection")
+                        }
+                    }
+                    Err(_) => {
+                        println!("Failed to convert Vec<u8> into array: incorrect length");
+                    }
+                }
             }
             Err(e) => {
                 println!("error: {}", e);
