@@ -1,35 +1,71 @@
 #![allow(unused_imports)]
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::TcpListener;
 use bytes::Bytes;
 
+
+
 struct Header {
-    message_size:i32,
-    correletion_id:i32,
+    request_api_key:i16,
+    request_api_version:i16,
+    correlation_id:i32,
 }
 impl Header {
-    fn new(message_size:i32, correletion_id:i32)-> Header {
-        Header {
-            message_size,
-            correletion_id,
+    fn new(request_api_key:i16, request_api_version:i16, correlation_id:i32)-> Self {
+        Self {
+            request_api_key,
+            request_api_version,
+            correlation_id,
         }
     }
-    fn to_bytes(&self) -> Vec<u8> {
+}
+impl Into<Vec<u8>> for Header {
+    fn into(self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend(self.message_size.to_be_bytes());
-        bytes.extend(self.correletion_id.to_be_bytes());
-        return bytes
+        bytes.extend(self.request_api_key.to_be_bytes());
+        bytes.extend(self.request_api_version.to_be_bytes());
+        bytes.extend(self.correlation_id.to_be_bytes());
+        bytes
     }
-    fn from_bytes(bytes:&[u8]) -> Self {
-        let message_size = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
-        let correletion_id = i32::from_be_bytes(bytes[4..8].try_into().unwrap());
+}
+
+impl From<&[u8]>  for Header{
+    fn from(bytes: &[u8]) -> Self {
+        let request_api_key = i16::from_be_bytes(bytes[0..2].try_into().unwrap());
+        let request_api_version = i16::from_be_bytes(bytes[2..4].try_into().unwrap());
+        let correlation_id = i32::from_be_bytes(bytes[4..8].try_into().unwrap());
+        Header::new(request_api_key, request_api_version, correlation_id)
+    }
+}
+struct Request {
+    message_size:i32,
+    header:Header,
+}
+impl Request {
+    fn new(message_size:i32, header:Header) -> Self {
         Self{
             message_size,
-            correletion_id
+            header
         }
     }
-    
+}
+impl Into<Vec<u8>> for Request {
+    fn into(self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend(self.message_size.to_be_bytes());
+        let header:Vec<u8> = self.header.into();
+        bytes.extend_from_slice(header.as_slice());
+        bytes
+    }
+}
+
+impl From<&[u8]> for Request {
+    fn from(bytes: &[u8]) -> Self {
+        let correlation_id = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let header:Header  = Header::from(&bytes[4..12]);
+        Request::new(correlation_id, header)
+    }
 }
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -43,21 +79,29 @@ fn main() {
         match stream {
             Ok(mut _stream) => {
                 println!("accepted new connection");
-                let message_size:i32 = 0;
-                let correletion_id:i32 = 7;
-                let header = Header::new(message_size, correletion_id);
-                match header.to_bytes().try_into() {
-                    Ok(array) => {
-                        let array:[u8;8] = array;
-                        match _stream.write(&array) {
+               /* let message_size:i32 = 35;
+                let request_api_key:i16 = 18;
+                let request_api_version:i16 = 4;
+                let correletion_id:i32 = 1870644833;*/
+                let mut buffer = [0; 12];
+                match _stream.read(& mut buffer) {
+                    Ok(n) => {
+                        let  req:Request = Request::from(buffer.as_slice());
+                        let mut resp:Vec<u8> = Vec::new();
+                        let ms:i32 = 0;
+                        resp.extend(ms.to_be_bytes());
+                        resp.extend(req.header.correlation_id.to_be_bytes());
+                        match _stream.write(resp.as_ref()) {
                             Ok(_) => println!("response sent to the client"),
                             Err(_) => eprintln!("Failed to write to connection")
                         }
                     }
                     Err(_) => {
-                        println!("Failed to convert Vec<u8> into array: incorrect length");
+                        eprintln!("Failed to read")
                     }
                 }
+
+
             }
             Err(e) => {
                 println!("error: {}", e);
