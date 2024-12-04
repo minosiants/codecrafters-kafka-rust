@@ -89,9 +89,8 @@ fn main() {
                         let  req:Request = Request::from(buffer.as_slice());
                         let mut resp:Vec<u8> = Vec::with_capacity(8);
                         resp.put_i32(0);
-                        resp.extend_from_slice(req.header.correlation_id.to_be_bytes().as_slice());
-                        println!("correlationId {}", req.header.correlation_id);
-                        _stream.write_all(resp.as_slice()).unwrap();
+                        resp.put_i32(req.header.correlation_id);
+                        _stream.write_all(&resp).unwrap();
                     }
                     Err(_) => {
                         eprintln!("Failed to read")
