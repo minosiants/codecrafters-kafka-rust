@@ -2,7 +2,7 @@
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use bytes::Bytes;
+use bytes::{BufMut, Bytes};
 
 
 
@@ -87,14 +87,11 @@ fn main() {
                 match _stream.read(& mut buffer) {
                     Ok(n) => {
                         let  req:Request = Request::from(buffer.as_slice());
-                        let mut resp:Vec<u8> = Vec::new();
-                        let ms:i32 = 0;
-                        resp.extend(ms.to_be_bytes());
-                        resp.extend(req.header.correlation_id.to_be_bytes());
-                        match _stream.write(resp.as_ref()) {
-                            Ok(_) => println!("response sent to the client"),
-                            Err(_) => eprintln!("Failed to write to connection")
-                        }
+                        let mut resp:Vec<u8> = Vec::with_capacity(8);
+                        resp.put_i32(0);
+                        resp.extend_from_slice(req.header.correlation_id.to_be_bytes().as_slice());
+                        println!("correlationId {}", req.header.correlation_id);
+                        _stream.write_all(resp.as_slice()).unwrap();
                     }
                     Err(_) => {
                         eprintln!("Failed to read")
