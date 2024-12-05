@@ -38,22 +38,19 @@ impl From<&[u8]> for Header {
     }
 }
 struct Request {
-    message_size: i32,
     header: Header,
 }
 impl Request {
-    fn new(message_size: i32, header: Header) -> Self {
+    fn new(header: Header) -> Self {
         Self {
-            message_size,
             header,
         }
     }
 }
 impl Into<Vec<u8>> for Request {
     fn into(self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend(self.message_size.to_be_bytes());
         let header: Vec<u8> = self.header.into();
+        let mut bytes = Vec::new();
         bytes.extend_from_slice(header.as_slice());
         bytes
     }
@@ -61,9 +58,8 @@ impl Into<Vec<u8>> for Request {
 
 impl From<&[u8]> for Request {
     fn from(bytes: &[u8]) -> Self {
-        let correlation_id = i32::from_be_bytes(bytes[0..4].try_into().unwrap());
-        let header: Header = Header::from(&bytes[4..12]);
-        Request::new(correlation_id, header)
+        let header: Header = Header::from(&bytes[0..8]);
+        Request::new(header)
     }
 }
 fn main() {
@@ -82,13 +78,16 @@ fn main() {
                  let request_api_key:i16 = 18;
                  let request_api_version:i16 = 4;
                  let correletion_id:i32 = 1870644833;*/
-                let mut buffer = [0; 12];
+                let mut message_size = [0;4];
+                stream.read_exact(&mut message_size).unwrap();
+                let message_size = i32::from_be_bytes(message_size) as usize;
+                let mut buffer = vec![0; message_size];
                 stream.read_exact(&mut buffer).unwrap();
-
                 let req: Request = Request::from(buffer.as_slice());
                 let mut resp: Vec<u8> = Vec::with_capacity(8);
                 resp.put_i32(0);
                 resp.put_i32(req.header.correlation_id);
+                println!("message_size {}", message_size);
                 println!("correlationId {}", req.header.correlation_id);
                 stream.write_all(&resp).unwrap();
             }
