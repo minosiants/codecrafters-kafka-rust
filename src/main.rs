@@ -84,11 +84,11 @@ fn main() {
                 let mut buffer = vec![0; message_size];
                 stream.read_exact(&mut buffer).unwrap();
                 let req: Request = Request::from(buffer.as_slice());
+                let error_code = 35;
                 let mut resp: Vec<u8> = Vec::with_capacity(8);
                 resp.put_i32(0);
                 resp.put_i32(req.header.correlation_id);
-                println!("message_size {}", message_size);
-                println!("correlationId {}", req.header.correlation_id);
+                resp.put_i32(error_code);
                 stream.write_all(&resp).unwrap();
             }
             Err(e) => {
