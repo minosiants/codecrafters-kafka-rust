@@ -2,8 +2,7 @@
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use bytes::{BufMut, Bytes};
-
+use bytes::{BufMut, Bytes, Buf};
 
 
 struct Header {
@@ -77,25 +76,20 @@ fn main() {
 
     for stream in listener.incoming() {
         match stream {
-            Ok(mut _stream) => {
-                println!("accepted new connection");
-               /* let message_size:i32 = 35;
-                let request_api_key:i16 = 18;
-                let request_api_version:i16 = 4;
-                let correletion_id:i32 = 1870644833;*/
-                let mut buffer = [0; 12];
-                match _stream.read(& mut buffer) {
-                    Ok(n) => {
-                        let  req:Request = Request::from(buffer.as_slice());
-                        let mut resp:Vec<u8> = Vec::with_capacity(8);
-                        resp.put_i32(0);
-                        resp.put_i32(req.header.correlation_id);
-                        _stream.write_all(&resp).unwrap();
-                    }
-                    Err(_) => {
-                        eprintln!("Failed to read")
-                    }
-                }
+            Ok(mut stream) => {
+                let mut len = [0; 4];
+                stream.read_exact(&mut len).unwrap();
+                let len = i32::from_be_bytes(len) as usize;
+                let mut request = vec![0; len];
+                stream.read_exact(&mut request).unwrap();
+                let mut request = request.as_slice();
+                let _request_api_key = request.get_i16();
+                let _request_api_version = request.get_i16();
+                let correlation_id = request.get_i32();
+                let mut response = Vec::with_capacity(8);
+                response.put_i32(0);
+                response.put_i32(correlation_id);
+                stream.write_all(&response).unwrap();
 
 
             }
