@@ -116,6 +116,7 @@ impl From<Response> for Vec<u8> {
         bytes.put_i32(value.message_size);
         bytes.put_i32(value.correlation_id);
         bytes.put_i16(value.error_code);
+        bytes.put_i16(value.num_of_api_keys);
         let api_versions: Vec<u8> = value.api_versions.iter().flat_map::<Vec<u8>,_>(|e| e.into()).collect();
         bytes.extend(api_versions);
         bytes
