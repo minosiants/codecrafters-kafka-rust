@@ -3,7 +3,7 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use bytes::{BufMut, Bytes};
-
+use std::mem;
 
 struct Header {
     request_api_key: i16,
@@ -62,6 +62,63 @@ impl From<&[u8]> for Request {
         Request::new(header)
     }
 }
+
+struct ApiVersion {
+    api_key: i16,
+    min_version: i16,
+    max_version: i16,
+}
+impl ApiVersion {
+    fn new(api_key: i16,
+           min_version: i16,
+           max_version: i16,) -> Self {
+        Self{
+            api_key,
+            min_version,
+            max_version
+        }
+    }
+}
+
+impl Into<Vec<u8>> for &ApiVersion {
+    fn into(self) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+        bytes.put_i16(self.api_key);
+        bytes.put_i16(self.min_version);
+        bytes.put_i16(self.max_version);
+        bytes
+    }
+}
+struct Response {
+    message_size: i32,
+    correlation_id: i32,
+    error_code: i16,
+    api_versions: Vec<ApiVersion>,
+}
+
+impl Response {
+    fn new(correlation_id: i32,
+           error_code: i16,
+           api_versions: Vec<ApiVersion>) -> Self {
+        Self {
+            message_size : (size_of::<ApiVersion>() * api_versions.len()) as i32 + 4 + 2,
+            correlation_id,
+            error_code,
+            api_versions,
+        }
+    }
+}
+impl From<Response> for Vec<u8> {
+    fn from(value: Response) -> Self {
+        let mut bytes: Vec<u8> = Vec::new();
+        bytes.put_i32(value.message_size);
+        bytes.put_i32(value.correlation_id);
+        bytes.put_i16(value.error_code);
+        let api_versions: Vec<u8> = value.api_versions.iter().flat_map::<Vec<u8>,_>(|e| e.into()).collect();
+        bytes.extend(api_versions);
+        bytes
+    }
+}
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
@@ -78,18 +135,15 @@ fn main() {
                  let request_api_key:i16 = 18;
                  let request_api_version:i16 = 4;
                  let correletion_id:i32 = 1870644833;*/
-                let mut message_size = [0;4];
+                let mut message_size = [0; 4];
                 stream.read_exact(&mut message_size).unwrap();
                 let message_size = i32::from_be_bytes(message_size) as usize;
                 let mut buffer = vec![0; message_size];
                 stream.read_exact(&mut buffer).unwrap();
                 let req: Request = Request::from(buffer.as_slice());
-                let error_code:i16 = 35;
-                let mut resp: Vec<u8> = Vec::with_capacity(8);
-                resp.put_i32(0);
-                resp.put_i32(req.header.correlation_id);
-                resp.put_i16(error_code);
-                stream.write_all(&resp).unwrap();
+                let api_version = ApiVersion::new(1234, 4,4);
+                let res:Vec<u8> = Response::new(req.header.correlation_id, 0, vec![api_version]).into();
+                stream.write_all(&res).unwrap();
             }
             Err(e) => {
                 println!("error: {}", e);
