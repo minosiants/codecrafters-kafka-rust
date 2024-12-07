@@ -125,6 +125,7 @@ impl From<Response> for Vec<u8> {
         bytes.put_i16(value.error_code);
         bytes.put_i16(value.num_of_api_keys);
         let api_versions: Vec<u8> = value.api_versions.iter().flat_map::<Vec<u8>,_>(|e| e.into()).collect();
+        println!("{}",api_versions.clone().len());
         bytes.extend(api_versions);
         bytes.put_i32(value.throttle_time_ms);
         bytes.put_i8(value.tagged_fields);
