@@ -67,9 +67,6 @@ struct ApiVersion {
     api_key: i16,
     min_version: i16,
     max_version: i16,
-    tagged_fields1:i8,
-    throttle_time_ms:i32,
-    tagged_fields2:i8,
 }
 impl ApiVersion {
     fn new(api_key: i16,
@@ -79,9 +76,6 @@ impl ApiVersion {
             api_key,
             min_version,
             max_version,
-            tagged_fields1:0,
-            throttle_time_ms:0,
-            tagged_fields2:0,
         }
     }
 }
@@ -92,9 +86,6 @@ impl Into<Vec<u8>> for &ApiVersion {
         bytes.put_i16(self.api_key);
         bytes.put_i16(self.min_version);
         bytes.put_i16(self.max_version);
-        bytes.put_i8(self.tagged_fields1);
-        bytes.put_i32(self.throttle_time_ms);
-        bytes.put_i8(self.tagged_fields2);
         bytes
     }
 }
@@ -104,6 +95,8 @@ struct Response {
     error_code: i16,
     num_of_api_keys:i16,
     api_versions: Vec<ApiVersion>,
+    throttle_time_ms:i32,
+    tagged_fields:i8,
 }
 
 impl Response {
@@ -114,8 +107,10 @@ impl Response {
             message_size : (size_of::<ApiVersion>() * api_versions.len()) as i32 + 4 + 2,
             correlation_id,
             error_code,
-            num_of_api_keys:api_versions.len() as i16,
+            num_of_api_keys:api_versions.len() as i16 +1,
             api_versions,
+            throttle_time_ms:0,
+            tagged_fields:0,
         }
     }
 }
@@ -128,6 +123,8 @@ impl From<Response> for Vec<u8> {
         bytes.put_i16(value.num_of_api_keys);
         let api_versions: Vec<u8> = value.api_versions.iter().flat_map::<Vec<u8>,_>(|e| e.into()).collect();
         bytes.extend(api_versions);
+        bytes.put_i32(value.throttle_time_ms);
+        bytes.put_i8(value.tagged_fields);
         bytes
     }
 }
