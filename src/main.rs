@@ -94,7 +94,7 @@ impl Into<Vec<u8>> for &ApiVersion {
         bytes.put_i16(self.max_version);
         bytes.put_i8(self.tagged_fields1);
         bytes.put_i32(self.throttle_time_ms);
-        bytes.put_i18(self.tagged_fields2);
+        bytes.put_i8(self.tagged_fields2);
         bytes
     }
 }
