@@ -93,6 +93,7 @@ struct Response {
     message_size: i32,
     correlation_id: i32,
     error_code: i16,
+    num_of_api_keys:i16,
     api_versions: Vec<ApiVersion>,
 }
 
@@ -104,6 +105,7 @@ impl Response {
             message_size : (size_of::<ApiVersion>() * api_versions.len()) as i32 + 4 + 2,
             correlation_id,
             error_code,
+            num_of_api_keys:api_versions.len() as i16,
             api_versions,
         }
     }
