@@ -67,6 +67,9 @@ struct ApiVersion {
     api_key: i16,
     min_version: i16,
     max_version: i16,
+    tagged_fields1:i8,
+    throttle_time_ms:i32,
+    tagged_fields2:i8,
 }
 impl ApiVersion {
     fn new(api_key: i16,
@@ -75,7 +78,10 @@ impl ApiVersion {
         Self{
             api_key,
             min_version,
-            max_version
+            max_version,
+            tagged_fields1:0,
+            throttle_time_ms:0,
+            tagged_fields2:0,
         }
     }
 }
@@ -86,6 +92,9 @@ impl Into<Vec<u8>> for &ApiVersion {
         bytes.put_i16(self.api_key);
         bytes.put_i16(self.min_version);
         bytes.put_i16(self.max_version);
+        bytes.put_i8(self.tagged_fields1);
+        bytes.put_i32(self.throttle_time_ms);
+        bytes.put_i18(self.tagged_fields2);
         bytes
     }
 }
