@@ -4,6 +4,8 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use bytes::{BufMut, Bytes};
 use std::mem;
+use std::fmt;
+
 
 struct Header {
     request_api_key: i16,
@@ -62,7 +64,7 @@ impl From<&[u8]> for Request {
         Request::new(header)
     }
 }
-
+#[derive(Debug, Clone)]
 struct ApiVersion {
     api_key: i16,
     min_version: i16,
@@ -89,6 +91,7 @@ impl Into<Vec<u8>> for &ApiVersion {
         bytes
     }
 }
+#[derive(Debug, Clone)]
 struct Response {
     message_size: i32,
     correlation_id: i32,
@@ -128,6 +131,8 @@ impl From<Response> for Vec<u8> {
         bytes
     }
 }
+
+
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
@@ -151,7 +156,10 @@ fn main() {
                 stream.read_exact(&mut buffer).unwrap();
                 let req: Request = Request::from(buffer.as_slice());
                 let api_version = ApiVersion::new(1234, 4,4);
-                let res:Vec<u8> = Response::new(req.header.correlation_id, 0, vec![api_version]).into();
+                let resp = Response::new(req.header.correlation_id, 0, vec![api_version]);
+
+                let res:Vec<u8> = resp.clone().into();
+                println!("resp.num_of_api_keys: {}",resp.num_of_api_keys);
                 stream.write_all(&res).unwrap();
             }
             Err(e) => {
