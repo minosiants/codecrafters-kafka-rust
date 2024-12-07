@@ -155,12 +155,20 @@ fn main() {
                 let mut buffer = vec![0; message_size];
                 stream.read_exact(&mut buffer).unwrap();
                 let req: Request = Request::from(buffer.as_slice());
-                let api_version = ApiVersion::new(1234, 4,4);
-                let resp = Response::new(req.header.correlation_id, 0, vec![api_version]);
+                if req.header.request_api_version > 4 {
+                    let message_size = 10;
+                    let error_code:i16 = 35;
 
-                let res:Vec<u8> = resp.clone().into();
-                println!("resp.num_of_api_keys: {}",resp.num_of_api_keys);
-                stream.write_all(&res).unwrap();
+                    let mut error:Vec<u8> = Vec::new();
+                    error.put_i32(message_size);
+                    error.put_i32(req.header.correlation_id);
+                    error.put_i16(error_code);
+                    stream.write_all(&error).unwrap();
+                } else {
+                    let api_version = ApiVersion::new(1234, 0, 4);
+                    let resp:Vec<u8> = Response::new(req.header.correlation_id, 0, vec![api_version]).into();
+                    stream.write(&resp).unwrap();
+                }
             }
             Err(e) => {
                 println!("error: {}", e);
