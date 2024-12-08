@@ -69,6 +69,7 @@ struct ApiVersion {
     api_key: i16,
     min_version: i16,
     max_version: i16,
+    tag_buffer:i8,
 }
 impl ApiVersion {
     fn new(api_key: i16,
@@ -78,6 +79,7 @@ impl ApiVersion {
             api_key,
             min_version,
             max_version,
+            tag_buffer:0,
         }
     }
 }
@@ -88,6 +90,7 @@ impl Into<Vec<u8>> for &ApiVersion {
         bytes.put_i16(self.api_key);
         bytes.put_i16(self.min_version);
         bytes.put_i16(self.max_version);
+        bytes.put_i8(self.tag_buffer);
         bytes
     }
 }
@@ -96,7 +99,7 @@ struct Response {
     message_size: i32,
     correlation_id: i32,
     error_code: i16,
-    num_of_api_keys:i16,
+    num_of_api_keys:i8,
     api_versions: Vec<ApiVersion>,
     throttle_time_ms:i32,
     tagged_fields:i8,
@@ -107,10 +110,10 @@ impl Response {
            error_code: i16,
            api_versions: Vec<ApiVersion>) -> Self {
         Self {
-            message_size : (size_of::<ApiVersion>() * api_versions.len()) as i32 + 4 + 2,
+            message_size : 7 + 4 + 2 + 1 + 4 + 1,
             correlation_id,
             error_code,
-            num_of_api_keys:api_versions.len() as i16 +1,
+            num_of_api_keys:api_versions.len() as i8 +1,
             api_versions,
             throttle_time_ms:0,
             tagged_fields:0,
@@ -121,13 +124,12 @@ impl From<Response> for Vec<u8> {
     fn from(value: Response) -> Self {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.put_i32(value.message_size);
+        //bytes.put_i32(0);
         bytes.put_i32(value.correlation_id);
         bytes.put_i16(value.error_code);
-        bytes.put_i16(value.num_of_api_keys);
+        bytes.put_i8(value.num_of_api_keys);
         let api_versions: Vec<u8> = value.api_versions.iter().flat_map::<Vec<u8>,_>(|e| e.into()).collect();
-        println!("{}",api_versions.clone().len());
         bytes.extend(api_versions);
-        bytes.put_i8(value.tagged_fields);
         bytes.put_i32(value.throttle_time_ms);
         bytes.put_i8(value.tagged_fields);
         bytes
@@ -147,10 +149,6 @@ fn main() {
         match stream {
             Ok(mut stream) => {
                 println!("accepted new connection");
-                /* let message_size:i32 = 35;
-                 let request_api_key:i16 = 18;
-                 let request_api_version:i16 = 4;
-                 let correletion_id:i32 = 1870644833;*/
                 let mut message_size = [0; 4];
                 stream.read_exact(&mut message_size).unwrap();
                 let message_size = i32::from_be_bytes(message_size) as usize;
@@ -160,14 +158,13 @@ fn main() {
                 if req.header.request_api_version > 4 {
                     let message_size = 10;
                     let error_code:i16 = 35;
-
                     let mut error:Vec<u8> = Vec::new();
                     error.put_i32(message_size);
                     error.put_i32(req.header.correlation_id);
                     error.put_i16(error_code);
                     stream.write_all(&error).unwrap();
                 } else {
-                    let api_version = ApiVersion::new(1234, 0, 4);
+                    let api_version = ApiVersion::new(18, 0, 4);
                     let resp:Vec<u8> = Response::new(req.header.correlation_id, 0, vec![api_version]).into();
                     stream.write(&resp).unwrap();
                 }
