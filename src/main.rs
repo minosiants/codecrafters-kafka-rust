@@ -155,8 +155,7 @@ fn main() {
                 let mut buffer = vec![0; message_size];
                 stream.read_exact(&mut buffer).unwrap();
                 let req: Request = Request::from(buffer.as_slice());
-                println!("{}",req.header.request_api_version);
-                if req.header.request_api_version > 4 {
+                if req.header.request_api_version > 4 || req.header.request_api_version < 0{
                     let message_size = 10;
                     let error_code:i16 = 35;
                     let mut error:Vec<u8> = Vec::new();
