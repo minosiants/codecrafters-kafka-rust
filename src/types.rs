@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
 use std::ops::Deref;
 use bytes::BufMut;
-use crate::ApiVersion::{V0, V1, V2, V3, V4};
 use crate::{Error,Result};
 
 

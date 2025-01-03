@@ -1,10 +1,9 @@
-
-use std::io::{Read, Write};
+use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 
 use bytes::BufMut;
 
-use codecrafters_kafka::{ErrorCode, CorrelationId, MessageSize, Result, Error, Request, Context, Response, ApiVersion, Api, ApiKey, TaggedFields};
+use codecrafters_kafka::{Api, ApiKey, ApiVersion, Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result, TaggedFields};
 
 fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     let mut error: Vec<u8> = Vec::new();
@@ -24,16 +23,16 @@ fn process_stream(stream:&mut TcpStream) -> Result<Vec<u8>> {
         Ok(request) => {
             process_request(&request)
         }
-        Err(Error::UnsupportedApiVersion(v, Some(id))) => {
+        Err(Error::UnsupportedApiVersion(_, Some(id))) => {
             error_response(&id)
         }
-        Err(Error::UnsupportedApiKey(v, Some(id))) => {
+        Err(Error::UnsupportedApiKey(_, Some(id))) => {
             error_response(&id)
         }
         Err(Error::GeneralError(_,_)) => {
             Vec::new()
         }
-        Err(e) => {
+        Err(_) => {
             Vec::new()
         }
     };
