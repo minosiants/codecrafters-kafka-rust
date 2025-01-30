@@ -45,7 +45,7 @@ fn process_stream(stream:&mut TcpStream) -> Result<Vec<u8>> {
     };
     Ok(resp)
 }
-
+/*
 fn main() -> Result<()> {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
@@ -69,6 +69,30 @@ fn main() -> Result<()> {
         handlers.push(handler);
     }
     handlers.into_iter().for_each(|i| i.join().unwrap());
+    Ok(())
+}*/
+
+
+fn main() -> Result<()> {
+    // You can use print statements as follows for debugging, they'll be visible when running tests.
+    println!("Logs from your program will appear here!");
+
+    // Uncomment this block to pass the first stage
+    //
+    let listener = TcpListener::bind("127.0.0.1:9092").with_context(||"Unable to create tcp listener")?;
+
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                while let Ok(resp) = process_stream(&mut stream) {
+                    stream.write(resp.as_ref()).with_context(|| "").unwrap();
+                }
+            }
+            Err(e) => {
+                println!("error: {}", e);
+            }
+        }
+    }
     Ok(())
 }
 
