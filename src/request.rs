@@ -41,11 +41,12 @@ impl TryFrom<&mut TcpStream> for Request {
 
     fn try_from(stream: &mut TcpStream) -> Result<Self> {
         let message_size = message_size(stream)?;
-
+        println!("message size {:?}", message_size);
         let mut request: Vec<u8> = vec![0; *message_size as usize];
 
         stream.read_exact(&mut request).with_context(||"not able to read stream")?;
-        let correlation_id: CorrelationId = request[2..4]
+        println!("{:?}", request);
+        let correlation_id: CorrelationId = request[4..8]
             .try_into()
             .with_context(||"not able  to read stream for CorrelationId")
             .map(i32::from_be_bytes)

@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
-
+use std::thread;
 use bytes::BufMut;
 
 use codecrafters_kafka::{Api, ApiKey, ApiVersion, Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result, TaggedFields};
@@ -19,20 +19,27 @@ fn process_request(request:&Request) -> Vec<u8> {
 fn process_stream(stream:&mut TcpStream) -> Result<Vec<u8>> {
     println!("accepted new connection");
     let req:Result<Request> = stream.try_into();
+    println!("req {:?}", req);
     let resp = match req {
         Ok(request) => {
+            println!("ok {:?}", request);
             process_request(&request)
         }
         Err(Error::UnsupportedApiVersion(_, Some(id))) => {
+            println!("unsupoeted api version: ");
             error_response(&id)
         }
         Err(Error::UnsupportedApiKey(_, Some(id))) => {
+            println!("unsuported api key");
             error_response(&id)
         }
-        Err(Error::GeneralError(_,_)) => {
+        Err(Error::GeneralError(txt, err)) => {
+            println!("txt: {}", txt);
+            println!("err: {:?}", err);
             Vec::new()
         }
-        Err(_) => {
+        Err(e) => {
+            println!("err {}", e);
             Vec::new()
         }
     };
@@ -46,18 +53,22 @@ fn main() -> Result<()> {
     // Uncomment this block to pass the first stage
     //
     let listener = TcpListener::bind("127.0.0.1:9092").with_context(||"Unable to create tcp listener")?;
-
+    let mut handlers = vec![];
     for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                let resp = process_stream(&mut stream)?;
-                stream.write(resp.as_ref()).with_context(||"")?;
+        let handler = thread::spawn(move ||{
+            match stream {
+                Ok(mut stream) => {
+                    let resp = process_stream(&mut stream)?;
+                    stream.write(resp.as_ref()).with_context(||"")?;
+                }
+                Err(e) => {
+                    println!("error: {}", e);
+                }
             }
-            Err(e) => {
-                println!("error: {}", e);
-            }
-        }
+        });
+        handlers.push(handler);
     }
+    handlers.into_iter().for_each(|i| i.join().unwrap());
     Ok(())
 }
 
