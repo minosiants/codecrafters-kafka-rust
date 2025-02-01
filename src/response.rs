@@ -21,7 +21,7 @@ impl Response {
            error_code: ErrorCode,
            api_versions: Vec<Api>) -> Self {
         Self {
-            message_size: MessageSize::new(7 + 4 + 2 + 1 + 4 + 1),
+            message_size: MessageSize::new( 4 + 2 + 1 + 4 + 1 + Response::size(api_versions.clone())),
             correlation_id,
             error_code,
             num_of_api_keys: api_versions.len() as i8 + 1,
@@ -29,6 +29,13 @@ impl Response {
             throttle_time_ms: 0,
             tagged_fields: TaggedFields::new(0),
         }
+    }
+    fn size(api_versions: Vec<Api>) -> i32 {
+        let r:Vec<u8> = api_versions.into_iter().flat_map(|v| {
+            let bytes: Vec<u8> = v.into();
+            return bytes;
+        }).collect();
+        r.len() as i32
     }
 }
 impl From<Response> for Vec<u8> {
@@ -38,7 +45,10 @@ impl From<Response> for Vec<u8> {
         bytes.put_i32(*value.correlation_id);
         bytes.put_i16(*value.error_code);
         bytes.put_i8(value.num_of_api_keys);
-        let api_versions: Vec<u8> = value.api_versions.into_iter().flat_map::<Vec<u8>, _>(|e| e.into()).collect();
+        let api_versions: Vec<u8> = value.api_versions.into_iter().flat_map::<Vec<u8>, _>(|e|
+            e.into()
+        ).collect();
+        println!("SIZE {:?}", api_versions.len());
         bytes.extend(api_versions);
         bytes.put_i32(value.throttle_time_ms);
         bytes.put_i8(*value.tagged_fields);

@@ -6,7 +6,7 @@ use crate::{Error,Result};
 
 
 #[derive(Debug, Copy, Clone)]
-pub enum ApiVersion {
+pub enum Version {
     V0,
     V1,
     V2,
@@ -14,10 +14,10 @@ pub enum ApiVersion {
     V4,
 }
 
-impl TryFrom<i16> for ApiVersion {
+impl TryFrom<i16> for Version {
     type Error = Error;
     fn try_from(value: i16) -> Result<Self> {
-        use ApiVersion::{V0, V1, V2, V3, V4};
+        use Version::{V0, V1, V2, V3, V4};
         match value {
             0 => Ok(V0),
             1 => Ok(V1),
@@ -29,11 +29,11 @@ impl TryFrom<i16> for ApiVersion {
     }
 }
 
-impl Deref for ApiVersion {
+impl Deref for Version {
     type Target = i16;
 
     fn deref(&self) -> &Self::Target {
-        use ApiVersion::{V0, V1, V2, V3, V4};
+        use Version::{V0, V1, V2, V3, V4};
         match self {
             V0 => &0,
             V1 => &1,
@@ -45,7 +45,8 @@ impl Deref for ApiVersion {
 }
 #[derive(Debug, Copy, Clone)]
 pub enum ApiKey {
-    ApiVersions
+    ApiVersions,
+    DescribeTopicPartitions
 }
 
 impl TryFrom<i16> for ApiKey {
@@ -53,6 +54,7 @@ impl TryFrom<i16> for ApiKey {
     fn try_from(value: i16) -> Result<Self> {
         match value {
             18 => Ok(ApiKey::ApiVersions),
+            75 => Ok(ApiKey::DescribeTopicPartitions),
             _ => Err(Error::UnsupportedApiKey(value, None))
         }
     }
@@ -63,6 +65,7 @@ impl Deref for ApiKey {
     fn deref(&self) -> &Self::Target {
         match &self   {
             ApiKey::ApiVersions => { &(18i16) }
+            ApiKey::DescribeTopicPartitions => { &(75i16) }
         }
     }
 }
@@ -96,10 +99,10 @@ impl From<i32> for MessageSize {
     }
 }
 
-#[derive(Debug)]
-pub struct Api(ApiKey, ApiVersion, ApiVersion, TaggedFields);
+#[derive(Debug, Copy, Clone)]
+pub struct Api(ApiKey, Version, Version, TaggedFields);
 impl Api {
-    pub fn new(api_key:ApiKey, min: ApiVersion, max: ApiVersion, tf:TaggedFields) -> Self {
+    pub fn new(api_key:ApiKey, min: Version, max: Version, tf:TaggedFields) -> Self {
         Self(
             api_key,
             min,
@@ -110,10 +113,10 @@ impl Api {
     pub fn api_key(&self) -> ApiKey {
         self.0
     }
-    pub fn min(&self) -> ApiVersion {
+    pub fn min(&self) -> Version {
         self.1
     }
-    pub fn max(&self) -> ApiVersion {
+    pub fn max(&self) -> Version {
         self.2
     }
     pub fn tagged_fields(&self) -> TaggedFields {

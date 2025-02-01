@@ -3,7 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 use bytes::BufMut;
 
-use codecrafters_kafka::{Api, ApiKey, ApiVersion, Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result, TaggedFields};
+use codecrafters_kafka::{Api, ApiKey, Version, Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result, TaggedFields};
 
 fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     let mut error: Vec<u8> = Vec::new();
@@ -13,8 +13,10 @@ fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     error
 }
 fn process_request(request:&Request) -> Vec<u8> {
-    let api = Api::new(ApiKey::ApiVersions,ApiVersion::V0,ApiVersion::V4,TaggedFields::new(0));
-    Response::new(request.header().correlation_id(),ErrorCode::NoError, vec![api]).into()
+    Response::new(request.header().correlation_id(),ErrorCode::NoError, vec![
+        Api::new(ApiKey::ApiVersions, Version::V0, Version::V4, TaggedFields::new(0)),
+        Api::new(ApiKey::DescribeTopicPartitions, Version::V0, Version::V0, TaggedFields::new(0))
+    ]).into()
 }
 fn process_stream(stream:&mut TcpStream) -> Result<Vec<u8>> {
     println!("accepted new connection");
