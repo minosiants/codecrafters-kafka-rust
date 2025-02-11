@@ -8,3 +8,4 @@ rust-version = "1.80"
 [dependencies]
 bytes = "1"                                  # helps manage buffers
 thiserror = "2"                             # error handling
+uuid = { version = "1", features = ["v4", "serde"] }

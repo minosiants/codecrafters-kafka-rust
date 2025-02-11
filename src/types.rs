@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::ops::Deref;
 use bytes::BufMut;
-use crate::{Error,Result};
+use crate::{Context, Error, Result};
 
 
 
@@ -13,7 +13,14 @@ pub enum Version {
     V3,
     V4,
 }
-
+impl Version {
+    pub fn mk(bytes:&[u8]) -> Result<Self> {
+        bytes.try_into()
+            .with_context(||"not able to read Stream")
+            .map(i16::from_be_bytes)
+            .and_then(Version::try_from)
+    }
+}
 impl TryFrom<i16> for Version {
     type Error = Error;
     fn try_from(value: i16) -> Result<Self> {
@@ -47,6 +54,15 @@ impl Deref for Version {
 pub enum ApiKey {
     ApiVersions,
     DescribeTopicPartitions
+}
+
+impl ApiKey {
+    pub fn mk(bytes:&[u8]) -> Result<Self> {
+        bytes.try_into()
+            .with_context(||"not able to read stream for ApiKey")
+            .map(i16::from_be_bytes)
+            .and_then(ApiKey::try_from)
+    }
 }
 
 impl TryFrom<i16> for ApiKey {
@@ -100,9 +116,12 @@ impl From<i32> for MessageSize {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Api(ApiKey, Version, Version, TaggedFields);
+pub struct Api(ApiKey, Version, Version, TagBuffer);
+
+
+
 impl Api {
-    pub fn new(api_key:ApiKey, min: Version, max: Version, tf:TaggedFields) -> Self {
+    pub fn new(api_key:ApiKey, min: Version, max: Version, tf: TagBuffer) -> Self {
         Self(
             api_key,
             min,
@@ -119,7 +138,7 @@ impl Api {
     pub fn max(&self) -> Version {
         self.2
     }
-    pub fn tagged_fields(&self) -> TaggedFields {
+    pub fn tagged_fields(&self) -> TagBuffer {
         self.3
     }
 }
@@ -129,20 +148,23 @@ impl From<Api> for Vec<u8> {
         bytes.put_i16(*value.api_key());
         bytes.put_i16(*value.min());
         bytes.put_i16(*value.max());
-        bytes.put_i8(*value.tagged_fields());
+        bytes.put_u8(*value.tagged_fields());
         bytes
     }
 }
 #[derive(Debug, Copy, Clone)]
-pub struct TaggedFields(i8);
+pub struct TagBuffer(u8);
 
-impl TaggedFields {
-    pub fn new(value:i8) -> Self{
+impl TagBuffer {
+    pub fn new(value:u8) -> Self{
         Self(value)
     }
+    pub fn zero() -> TagBuffer {
+        Self(0)
+    }
 }
-impl Deref for TaggedFields {
-    type Target = i8;
+impl Deref for TagBuffer {
+    type Target = u8;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -151,15 +173,17 @@ impl Deref for TaggedFields {
 #[derive(Debug, Clone, Copy)]
 pub enum ErrorCode {
     UnsupportedVersion,
-    NoError
+    NoError,
+    UnknownTopic
 }
 impl Deref for ErrorCode {
     type Target = i16;
 
     fn deref(&self) -> &Self::Target {
-        match self {
+        match &self {
             ErrorCode::UnsupportedVersion => &35i16,
-            ErrorCode::NoError => &0i16
+            ErrorCode::NoError => &0i16,
+            ErrorCode::UnknownTopic => &3i16
         }
     }
 }
@@ -169,6 +193,12 @@ impl CorrelationId {
     pub fn new(value: i32) -> Self {
         Self(value)
     }
+    pub fn mk(bytes:&[u8]) -> Result<CorrelationId> {
+        bytes.try_into()
+            .with_context(||"not able  to read stream for CorrelationId")
+            .map(i32::from_be_bytes)
+            .map(CorrelationId::new)
+    }
 }
 
 impl Deref for CorrelationId {
@@ -176,5 +206,65 @@ impl Deref for CorrelationId {
 
     fn deref(&self) -> &Self::Target {
        &self.0
+    }
+}
+#[derive(Debug, Clone, Copy)]
+pub struct ThrottleTime(i32);
+
+impl ThrottleTime {
+    pub fn new(v:i32) -> Self {
+        Self(v)
+    }
+    pub fn zero() -> Self{
+        Self(0)
+    }
+}
+impl Deref for ThrottleTime {
+    type Target = i32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug,Clone)]
+pub struct ClientId(String);
+
+impl ClientId {
+    pub fn new(str:String) -> Self {
+        Self(str)
+    }
+    pub fn mk(bytes:&[u8]) -> Result<Self> {
+        String::from_utf8(bytes.to_vec())
+            .context("not able mk ClientId")
+            .map(ClientId::new)
+    }
+}
+
+#[derive(Debug,Clone)]
+pub struct Length(i16);
+
+impl Deref for Length {
+    type Target = i16;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<Length> for usize {
+    fn from(value: Length) -> Self {
+        value.0 as usize
+    }
+}
+impl Length {
+    pub fn new(v:i16) -> Self {
+        Self(v)
+    }
+    pub fn mk(bytes:&[u8]) -> Result<Self> {
+        bytes.try_into()
+            .context("not able mk Length")
+            .map(i16::from_be_bytes)
+            .map(Length::new)
     }
 }

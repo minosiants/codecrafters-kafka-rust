@@ -1,9 +1,10 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::thread;
+
 use bytes::BufMut;
 
-use codecrafters_kafka::{Api, ApiKey, Version, Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result, TaggedFields};
+use codecrafters_kafka::{Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result};
 
 fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     let mut error: Vec<u8> = Vec::new();
@@ -12,40 +13,36 @@ fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     error.put_i16(*ErrorCode::UnsupportedVersion);
     error
 }
-fn process_request(request:&Request) -> Vec<u8> {
-    Response::new(request.header().correlation_id(),ErrorCode::NoError, vec![
-        Api::new(ApiKey::ApiVersions, Version::V0, Version::V4, TaggedFields::new(0)),
-        Api::new(ApiKey::DescribeTopicPartitions, Version::V0, Version::V0, TaggedFields::new(0))
-    ]).into()
-}
+
+
 fn process_stream(stream:&mut TcpStream) -> Result<Vec<u8>> {
     println!("accepted new connection");
     let req:Result<Request> = stream.try_into();
     println!("req {:?}", req);
-    let resp = match req {
-        Ok(request) => {
-            println!("ok {:?}", request);
-            process_request(&request)
-        }
-        Err(Error::UnsupportedApiVersion(_, Some(id))) => {
-            println!("unsupoeted api version: ");
-            error_response(&id)
-        }
-        Err(Error::UnsupportedApiKey(_, Some(id))) => {
-            println!("unsuported api key");
-            error_response(&id)
-        }
-        Err(Error::GeneralError(txt, err)) => {
-            println!("txt: {}", txt);
-            println!("err: {:?}", err);
-            Vec::new()
-        }
-        Err(e) => {
-            println!("err {}", e);
-            Vec::new()
-        }
-    };
-    Ok(resp)
+    let res:Vec<u8> = req.and_then(|r|Response::response(&r))
+        .map(|v| v.into())
+        .unwrap_or_else(|e|
+                 match e {
+                     Error::UnsupportedApiVersion(_, Some(id)) => {
+                         println!("unsupoeted api version: ");
+                         error_response(&id)
+                     }
+                     Error::UnsupportedApiKey(_, Some(id)) => {
+                         println!("unsuported api key");
+                         error_response(&id)
+                     }
+                     Error::GeneralError(txt, err) => {
+                         println!("txt: {}", txt);
+                         println!("err: {:?}", err);
+                         Vec::new()
+                     }
+                     e => {
+                         println!("err {}", e);
+                         Vec::new()
+                     }
+
+         });
+    Ok(res)
 }
 
 fn main() -> Result<()> {
@@ -61,7 +58,7 @@ fn main() -> Result<()> {
             match stream {
                 Ok(mut stream) => {
                     while let Ok(resp) = process_stream(&mut stream) {
-                        stream.write(resp.as_ref()).with_context(|| "").unwrap();
+                        stream.write(resp.as_ref()).context("").unwrap();
                     }
                 }
                 Err(e) => {

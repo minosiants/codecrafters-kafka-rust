@@ -1,6 +1,9 @@
 use std::fmt::Display;
+use std::string::FromUtf8Error;
 use std::sync::Arc;
+
 use thiserror::*;
+
 use crate::CorrelationId;
 use crate::Error::GeneralError;
 
@@ -12,8 +15,12 @@ pub enum Error {
     UnsupportedApiVersion(i16, Option<CorrelationId>),
     #[error("Unsupported Api Key {}", .0)]
     UnsupportedApiKey(i16, Option<CorrelationId>),
+    #[error("Unknown Topic or Partition {}", .0)]
+    UnknownTopicOrPartition(i16, Option<CorrelationId>),
     #[error("Genera Error {}", .0)]
     GeneralError(String, Arc<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("Failed to convert bytes to string: {0}")]
+    Utf8ConversionError(#[from] FromUtf8Error),
 }
 impl Error {
     pub fn with_correlation_id(&self, id: CorrelationId) -> Self {
@@ -25,9 +32,14 @@ impl Error {
             UnsupportedApiKey(v, _) => {
                 UnsupportedApiKey(*v, Some(id))
             }
-            GeneralError(str, e) => GeneralError(str.to_string(), e.clone())
+            UnknownTopicOrPartition(v, _) => {
+                UnknownTopicOrPartition(*v, Some(id))
+            }
+            GeneralError(str, e) => GeneralError(str.to_string(), e.clone()),
+            Utf8ConversionError(e) => Utf8ConversionError(e.clone()),
         }
     }
+
 }
 
 pub trait Context<T, E> {
