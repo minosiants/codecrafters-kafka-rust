@@ -3,7 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 use bytes::BufMut;
-
+use pretty_hex::simple_hex;
 use codecrafters_kafka::{Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result};
 
 fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
@@ -31,7 +31,7 @@ fn process_stream(stream:&mut TcpStream) -> Result<Vec<u8>> {
                          println!("unsuported api key");
                          error_response(&id)
                      }
-                     Error::GeneralError(txt, err) => {
+                     Error::ErrorWrapper(txt, err) => {
                          println!("txt: {}", txt);
                          println!("err: {:?}", err);
                          Vec::new()

@@ -209,10 +209,10 @@ impl Deref for CorrelationId {
     }
 }
 #[derive(Debug, Clone, Copy)]
-pub struct ThrottleTime(i32);
+pub struct ThrottleTime(u32);
 
 impl ThrottleTime {
-    pub fn new(v:i32) -> Self {
+    pub fn new(v:u32) -> Self {
         Self(v)
     }
     pub fn zero() -> Self{
@@ -220,7 +220,7 @@ impl ThrottleTime {
     }
 }
 impl Deref for ThrottleTime {
-    type Target = i32;
+    type Target = u32;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -268,3 +268,4 @@ impl Length {
             .map(Length::new)
     }
 }
+

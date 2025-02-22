@@ -9,3 +9,5 @@ rust-version = "1.80"
 bytes = "1"                                  # helps manage buffers
 thiserror = "2"                             # error handling
 uuid = { version = "1", features = ["v4", "serde"] }
+pretty-hex = "0.4"
+hex = "0.4.3"

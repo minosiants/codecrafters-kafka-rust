@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use bytes::BufMut;
 
-use crate::{Api, ApiKey, CorrelationId, Error, ErrorCode, Request, RequestBody, Result, TagBuffer, ThrottleTime, Topic, Version};
+use crate::{Api, ApiKey, CorrelationId, Error, ErrorCode, Meta, Partition, read, Record, Request, RequestBody, Result, TagBuffer, ThrottleTime, Topic, TopicId, VarInt, Version};
 
 #[derive(Debug, Clone)]
 pub enum ResponseBody {
@@ -65,11 +65,20 @@ impl Response {
             RequestBody::DescribeTopicPartitions { topics, limit:_, cursor:_ } => {
                 match request.header.api_version()  {
                     Version::V0 => {
+                        let meta = Meta::load("/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log")?;
                         Ok(ResponseBody::DescribeTopicPartitions {
                             throttle_time: ThrottleTime::zero(),
-                            topics:topics.into_iter().map(|name|
-                                Topic::unknown(name.clone())
-                            ).collect(),
+                            topics:topics.into_iter().map(|name| {
+                                match meta.find_topic_id(name) {
+                                    None => Topic::unknown(name.clone()),
+                                    Some(topic_id) => {
+                                        let partitions = meta.find_partitions(&topic_id)
+                                            .into_iter()
+                                            .flat_map(|v| v.clone().try_into().into_iter()).collect();
+                                        Topic::new(name.clone(), topic_id.clone(), partitions)
+                                    }
+                                }
+                            }).collect(),
                             next_cursor:None
                         })
                     }
@@ -106,7 +115,7 @@ impl From<Response> for Vec<u8> {
                 bytes.put_i8(api_versions.len() as i8 +1);
                 let api_versions: Vec<u8> = api_versions.into_iter().flat_map::<Vec<u8>,_>(|e| e.into()).collect();
                 bytes.extend(api_versions);
-                bytes.put_i32(*throttle_time);
+                bytes.put_u32(*throttle_time);
                 bytes.put_u8(*tagged_fields);
                 with_message_size(&bytes)
             }
@@ -114,8 +123,8 @@ impl From<Response> for Vec<u8> {
                 let mut bytes: Vec<u8> = Vec::new();
                 bytes.put_i32(*value.correlation_id);
                 bytes.put_u8(*TagBuffer::zero());
-                bytes.put_i32(*throttle_time);
-                bytes.put_u8(topics.len() as u8+1);
+                bytes.put_u32(*throttle_time);
+                bytes.extend(VarInt::encode((topics.len()+1) as u64));
                 let topics_bytes: Vec<u8> = topics.into_iter().flat_map::<Vec<u8>, _>(|e| e.into()).collect();
                 bytes.extend(topics_bytes);
                 bytes.put_u8(next_cursor.map(|v|*v).unwrap_or_else(||0xff));
@@ -125,5 +134,26 @@ impl From<Response> for Vec<u8> {
             }
         }
 
+    }
+}
+
+impl TryFrom<Record> for Partition {
+    type Error = Error;
+
+    fn try_from(value: Record) -> Result<Self> {
+        match value {
+            Record::FeatureLevelRecord(_) => Err(Error::general("Expected Partition record")),
+            Record::TopicRecord(_, _) => Err(Error::general("Expected Partition record")),
+            Record::PartitionRecord(partition_id, topic_id, leader, leader_epoch, replica_nodes, isr_nodes, v, _) => Ok(Partition::new(
+                partition_id,
+                leader,
+                leader_epoch,
+                replica_nodes,
+                isr_nodes,
+                vec![],
+                vec![],
+                vec![]
+            ))
+        }
     }
 }

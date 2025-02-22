@@ -1,6 +1,6 @@
 use std::ops::Deref;
 use bytes::BufMut;
-use crate::{ErrorCode, Partition, TagBuffer};
+use crate::{ErrorCode, Partition, TagBuffer, VarInt};
 use uuid::*;
 #[derive(Debug, Clone)]
 pub struct Topic{
@@ -13,14 +13,14 @@ pub struct Topic{
     tag_buffer: TagBuffer
 }
 impl Topic {
-    pub fn new(name:TopicName, id:TopicId) -> Self {
+    pub fn new(name:TopicName, id:TopicId, partitions: Vec<Partition>) -> Self {
         Self{
             error_code:ErrorCode::NoError,
             name,
             id,
             is_internal:false,
-            partitions:vec![],
-            topic_authorized_operations:TopicAuthorizedOperations(0),
+            partitions,
+            topic_authorized_operations:TopicAuthorizedOperations(0x0df8),
             tag_buffer:TagBuffer::zero()
 
 
@@ -43,7 +43,7 @@ impl From<Topic> for Vec<u8> {
     fn from(topic: Topic) -> Self {
         let mut bytes = Vec::new();
         bytes.put_i16(*topic.error_code);
-        bytes.put_u8((*topic.name).as_bytes().len() as u8 +1);
+        bytes.extend(VarInt::encode((topic.name.len()+1) as u64));
         bytes.put_slice((*topic.name).as_bytes());
         bytes.put_slice((*topic.id).as_bytes());
         bytes.put_u8(u8::from(topic.is_internal));
@@ -62,7 +62,14 @@ impl TopicName {
     pub fn new(name:String) -> Self {
         TopicName(name)
     }
-
+    pub fn from_str(name:&str) -> Self{
+        Self::new(name.to_string())
+    }
+}
+impl PartialEq for &TopicName {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
 }
 
 impl Deref for TopicName {
@@ -72,7 +79,7 @@ impl Deref for TopicName {
         &self.0
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TopicId(Uuid);
 impl TopicId {
     pub fn new(id:Uuid) -> Self {
@@ -90,6 +97,7 @@ impl Deref for TopicId {
         &self.0
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct TopicAuthorizedOperations(u32);
 
