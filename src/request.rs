@@ -33,12 +33,14 @@ pub enum RequestBody {
         limit: ResponsePartitionLimit,
         cursor: Option<Cursor>,
     },
+    Fetch,
 }
 impl RequestBody {
     pub fn mk(api_key: ApiKey, body: &[u8]) -> Result<Self> {
         match api_key {
             ApiKey::ApiVersions => Ok(RequestBody::ApiVersions),
-            ApiKey::DescribeTopicPartitions => Self::mk_describe_topic_partitions(body)
+            ApiKey::DescribeTopicPartitions => Self::mk_describe_topic_partitions(body),
+            ApiKey::Fetch => Self::mk_fetch(body)
         }
     }
     fn mk_describe_topic_partitions(body: &[u8]) -> Result<Self> {
@@ -68,6 +70,10 @@ impl RequestBody {
             cursor,
         })
     }
+    fn mk_fetch(body: &[u8])->Result<Self>{
+        todo!()
+    }
+
 }
 #[derive(Debug, Clone)]
 pub struct ResponsePartitionLimit(i32);

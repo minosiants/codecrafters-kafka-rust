@@ -57,6 +57,7 @@ impl Response {
                     api_versions: vec![
                         Api::new(ApiKey::ApiVersions, Version::V0, Version::V4, TagBuffer::new(0)),
                         Api::new(ApiKey::DescribeTopicPartitions, Version::V0, Version::V0, TagBuffer::new(0)),
+                        Api::new(ApiKey::Fetch, Version::V0, Version::V16, TagBuffer::new(0)),
                     ],
                     throttle_time: ThrottleTime::zero(),
                     tagged_fields: TagBuffer::zero(),
@@ -86,6 +87,9 @@ impl Response {
                        Err(Error::UnsupportedApiVersion(2, Some(request.header.correlation_id())))
                     }
                 }
+            }
+            RequestBody::Fetch => {
+                todo!()
             }
         };
         println!("response: {:?}", body);

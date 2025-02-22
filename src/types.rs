@@ -12,6 +12,18 @@ pub enum Version {
     V2,
     V3,
     V4,
+    V5,
+    V6,
+    V7,
+    V8,
+    V9,
+    V10,
+    V11,
+    V12,
+    V13,
+    V14,
+    V15,
+    V16,
 }
 impl Version {
     pub fn mk(bytes:&[u8]) -> Result<Self> {
@@ -24,13 +36,25 @@ impl Version {
 impl TryFrom<i16> for Version {
     type Error = Error;
     fn try_from(value: i16) -> Result<Self> {
-        use Version::{V0, V1, V2, V3, V4};
+        use Version::*;
         match value {
             0 => Ok(V0),
             1 => Ok(V1),
             2 => Ok(V2),
             3 => Ok(V3),
             4 => Ok(V4),
+            5 => Ok(V5),
+            6 => Ok(V6),
+            7 => Ok(V7),
+            8 => Ok(V8),
+            9 => Ok(V9),
+            10 => Ok(V10),
+            11 => Ok(V11),
+            12 => Ok(V12),
+            13 => Ok(V13),
+            14 => Ok(V14),
+            15 => Ok(V15),
+            16 => Ok(V16),
             _ => Err(Error::UnsupportedApiVersion(value, None))
         }
     }
@@ -40,20 +64,33 @@ impl Deref for Version {
     type Target = i16;
 
     fn deref(&self) -> &Self::Target {
-        use Version::{V0, V1, V2, V3, V4};
+        use Version::*;
         match self {
             V0 => &0,
             V1 => &1,
             V2 => &2,
             V3 => &3,
             V4 => &4,
+            V5 => &5,
+            V6 => &6,
+            V7 => &7,
+            V8 => &8,
+            V9 => &9,
+            V10 => &10,
+            V11 => &11,
+            V12 => &12,
+            V13 => &13,
+            V14 => &14,
+            V15 => &15,
+            V16 => &16,
         }
     }
 }
 #[derive(Debug, Copy, Clone)]
 pub enum ApiKey {
     ApiVersions,
-    DescribeTopicPartitions
+    DescribeTopicPartitions,
+    Fetch
 }
 
 impl ApiKey {
@@ -71,6 +108,7 @@ impl TryFrom<i16> for ApiKey {
         match value {
             18 => Ok(ApiKey::ApiVersions),
             75 => Ok(ApiKey::DescribeTopicPartitions),
+            1 => Ok(ApiKey::Fetch),
             _ => Err(Error::UnsupportedApiKey(value, None))
         }
     }
@@ -80,8 +118,9 @@ impl Deref for ApiKey {
 
     fn deref(&self) -> &Self::Target {
         match &self   {
-            ApiKey::ApiVersions => { &(18i16) }
-            ApiKey::DescribeTopicPartitions => { &(75i16) }
+            ApiKey::ApiVersions =>  &18i16,
+            ApiKey::DescribeTopicPartitions => &75i16,
+            ApiKey::Fetch => &1i16,
         }
     }
 }
