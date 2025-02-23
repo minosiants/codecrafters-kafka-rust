@@ -149,10 +149,15 @@ impl From<Response> for Vec<u8> {
             },
             ResponseBody::Fetch {throttle_time, session_id, responses } => {
                 let mut bytes:Vec<u8> = Vec::new();
+                bytes.put_i32(*value.correlation_id);
+                bytes.put_u8(*TagBuffer::zero());
                 bytes.put_u32(*throttle_time);
+                bytes.put_i16(*ErrorCode::NoError);
                 bytes.put_u32(*session_id);
                 bytes.extend(VarInt::encode((responses.len()+1) as u64));
-                let topics_bytes: Vec<u8> = responses.into_iter().flat_map::<Vec<u8>, _>(|e| e.into()).collect();
+                let responses_bytes: Vec<u8> = responses.into_iter().flat_map::<Vec<u8>, _>(|e| e.into()).collect();
+                bytes.extend(responses_bytes);
+                bytes.put_u8(*TagBuffer::zero());
                 with_message_size(&bytes)
             }
         }
