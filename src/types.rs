@@ -307,4 +307,170 @@ impl Length {
             .map(Length::new)
     }
 }
+#[derive(Debug,Clone)]
+pub struct SessionId(u32);
+impl SessionId {
+    pub fn new(v:u32) ->Self {
+        Self(v)
+    }
+}
 
+impl Deref for SessionId {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+pub struct MaxWait(u32);
+impl MaxWait {
+    pub fn new(v:u32) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for MaxWait {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+pub struct MinBytes(u32);
+impl MinBytes {
+    pub fn new(v:u32) -> Self {
+        Self(v)
+    }
+}
+impl Deref for MinBytes {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+pub struct MaxBytes(u32);
+impl MaxBytes {
+    pub fn new(v:u32) -> Self {
+        Self(v)
+    }
+}
+impl Deref for MaxBytes {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+pub struct IsolationLevel(u8);
+impl IsolationLevel {
+    pub fn new(v:u8) -> Self {
+        Self(v)
+    }
+}
+impl Deref for IsolationLevel{
+    type Target = u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+pub struct SessionEpoch(u32);
+impl SessionEpoch {
+    pub fn new(v:u32) -> Self {
+        Self(v)
+    }
+}
+impl Deref for SessionEpoch {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug,Clone)]
+pub struct HighWatermark(u64);
+
+impl HighWatermark {
+    pub fn new(v:u64) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for HighWatermark {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+pub struct LastStableOffset(u64);
+
+impl LastStableOffset {
+    pub fn new (v:u64) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for LastStableOffset {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+
+pub struct ProducerId(u64);
+impl ProducerId {
+    pub fn new(v:u64) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for ProducerId {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+pub struct FirstOffset(u64);
+impl FirstOffset {
+    pub fn new(v:u64) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for FirstOffset {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug,Clone)]
+
+pub struct PreferredReadReplica(u32);
+
+impl PreferredReadReplica {
+    pub fn new(v:u32) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for PreferredReadReplica {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}

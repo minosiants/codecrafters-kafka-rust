@@ -7,6 +7,8 @@ mod partition;
 mod file;
 mod meta;
 mod pb;
+mod fetch;
+
 pub use error::*;
 pub use types::*;
 pub use request::*;
@@ -16,3 +18,4 @@ pub use partition::*;
 pub use file::*;
 pub use meta::*;
 pub use pb::*;
+pub use fetch::*;

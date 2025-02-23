@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use crate::{ErrorCode, TagBuffer, VarInt};
+use crate::{ErrorCode, TagBuffer, TopicId, VarInt};
 use bytes::BufMut;
 #[derive(Debug, Clone)]
 pub struct Partition{
@@ -177,5 +177,95 @@ impl From<Partition> for Vec<u8> {
         partition.offline_replicas.iter().for_each(|v| bytes.put_u32(*(v.clone())));
         bytes.put_u8(*TagBuffer::zero());
         bytes
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CurrentLeaderEpoch(u32);
+
+impl CurrentLeaderEpoch {
+    pub fn new(v:u32) -> Self {
+        CurrentLeaderEpoch(v)
+    }
+}
+
+impl Deref for CurrentLeaderEpoch {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FetchOffset(u64);
+
+impl FetchOffset {
+    pub fn new(v:u64) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for FetchOffset {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug, Clone)]
+pub struct LastFetchEpoch(u32);
+
+impl LastFetchEpoch {
+    pub fn new(v:u32) -> Self {
+       Self(v)
+    }
+}
+
+impl Deref for LastFetchEpoch {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug, Clone)]
+pub struct LogStartOffset(u64);
+
+impl LogStartOffset {
+    pub fn new(v:u64) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for LogStartOffset {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug, Clone)]
+pub struct PartitionMaxBytes(u32);
+
+impl PartitionMaxBytes {
+    pub fn new(v:u32) -> Self {
+        Self(v)
+    }
+}
+
+impl Deref for PartitionMaxBytes {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug, Clone)]
+pub struct RackId(String);
+
+impl RackId {
+    pub fn new(v:&str) -> Self {
+        Self(v.to_string())
     }
 }

@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use bytes::BufMut;
 
-use crate::{Api, ApiKey, CorrelationId, Error, ErrorCode, Meta, Partition, read, Record, Request, RequestBody, Result, TagBuffer, ThrottleTime, Topic, TopicId, VarInt, Version};
+use crate::{Api, ApiKey, CorrelationId, Error, ErrorCode, FetchResponse, Meta, Partition, read, Record, Request, RequestBody, Result, SessionId, TagBuffer, ThrottleTime, Topic, TopicId, VarInt, Version};
 
 #[derive(Debug, Clone)]
 pub enum ResponseBody {
@@ -15,8 +15,15 @@ pub enum ResponseBody {
         throttle_time: ThrottleTime,
         topics: Vec<Topic>,
         next_cursor: Option<Cursor>,
+    },
+    Fetch{
+        throttle_time: ThrottleTime,
+        session_id:SessionId,
+        responses:Vec<FetchResponse>
     }
+
 }
+
 #[derive(Debug, Clone)]
 pub struct Cursor(u8);
 impl Cursor {
@@ -88,8 +95,12 @@ impl Response {
                     }
                 }
             }
-            RequestBody::Fetch => {
-                todo!()
+            RequestBody::Fetch{ max_wait, min_bytes, max_bytes, isolation_level, session_id, session_epoch, topics } => {
+                Ok(ResponseBody::Fetch {
+                    throttle_time:ThrottleTime::zero(),
+                    session_id:SessionId::new(0),
+                    responses:vec![]
+                })
             }
         };
         println!("response: {:?}", body);
@@ -135,6 +146,14 @@ impl From<Response> for Vec<u8> {
                 bytes.put_u8(*TagBuffer::zero());
                 with_message_size(&bytes)
 
+            },
+            ResponseBody::Fetch {throttle_time, session_id, responses } => {
+                let mut bytes:Vec<u8> = Vec::new();
+                bytes.put_u32(*throttle_time);
+                bytes.put_u32(*session_id);
+                bytes.extend(VarInt::encode((responses.len()+1) as u64));
+                let topics_bytes: Vec<u8> = responses.into_iter().flat_map::<Vec<u8>, _>(|e| e.into()).collect();
+                with_message_size(&bytes)
             }
         }
 

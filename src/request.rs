@@ -2,7 +2,7 @@ use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::net::TcpStream;
 
-use crate::{ApiKey, ClientId, Context, CorrelationId, Cursor, Length, MessageSize, Result, TopicName, Version};
+use crate::{ApiKey, ClientId, Context, CorrelationId, Cursor, FetchTopic, IsolationLevel, Length, MaxBytes, MaxWait, MessageSize, MinBytes, Result, SessionEpoch, SessionId, TopicName, Version};
 use crate::error::Error;
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,15 @@ pub enum RequestBody {
         limit: ResponsePartitionLimit,
         cursor: Option<Cursor>,
     },
-    Fetch,
+    Fetch{
+        max_wait: MaxWait,
+        min_bytes: MinBytes,
+        max_bytes: MaxBytes,
+        isolation_level:IsolationLevel,
+        session_id: SessionId,
+        session_epoch: SessionEpoch,
+        topics:Vec<FetchTopic>
+    },
 }
 impl RequestBody {
     pub fn mk(api_key: ApiKey, body: &[u8]) -> Result<Self> {
@@ -71,7 +79,15 @@ impl RequestBody {
         })
     }
     fn mk_fetch(body: &[u8])->Result<Self>{
-        todo!()
+        Ok(RequestBody::Fetch {
+            max_wait: MaxWait::new(0),
+            min_bytes: MinBytes::new(0),
+            max_bytes: MaxBytes::new(0),
+            isolation_level: IsolationLevel::new(0),
+            session_id: SessionId::new(0),
+            session_epoch: SessionEpoch::new(0),
+            topics: vec![],
+        })
     }
 
 }
