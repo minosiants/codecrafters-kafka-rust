@@ -98,7 +98,7 @@ impl Response {
             RequestBody::Fetch{ max_wait, min_bytes, max_bytes, isolation_level, session_id, session_epoch, topics } => {
                 Ok(ResponseBody::Fetch {
                     throttle_time:ThrottleTime::zero(),
-                    session_id:SessionId::new(0),
+                    session_id:session_id.clone(),
                     responses:vec![]
                 })
             }
@@ -125,7 +125,7 @@ impl From<Response> for Vec<u8> {
                 tagged_fields
             } => {
                 let mut bytes: Vec<u8> = Vec::new();
-                bytes.put_i32(*value.correlation_id);
+                bytes.put_u32(*value.correlation_id);
                 bytes.put_i16(*ErrorCode::NoError);
                 bytes.put_i8(api_versions.len() as i8 +1);
                 let api_versions: Vec<u8> = api_versions.into_iter().flat_map::<Vec<u8>,_>(|e| e.into()).collect();
@@ -136,7 +136,7 @@ impl From<Response> for Vec<u8> {
             }
             ResponseBody::DescribeTopicPartitions { throttle_time, topics, next_cursor } => {
                 let mut bytes: Vec<u8> = Vec::new();
-                bytes.put_i32(*value.correlation_id);
+                bytes.put_u32(*value.correlation_id);
                 bytes.put_u8(*TagBuffer::zero());
                 bytes.put_u32(*throttle_time);
                 bytes.extend(VarInt::encode((topics.len()+1) as u64));
@@ -149,7 +149,7 @@ impl From<Response> for Vec<u8> {
             },
             ResponseBody::Fetch {throttle_time, session_id, responses } => {
                 let mut bytes:Vec<u8> = Vec::new();
-                bytes.put_i32(*value.correlation_id);
+                bytes.put_u32(*value.correlation_id);
                 bytes.put_u8(*TagBuffer::zero());
                 bytes.put_u32(*throttle_time);
                 bytes.put_i16(*ErrorCode::NoError);

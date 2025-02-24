@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use crate::{ErrorCode, TagBuffer, TopicId, VarInt};
+use crate::{BytesOps, Error, ErrorCode, TagBuffer, TopicId, VarInt, Result, TryExtract};
 use bytes::BufMut;
 #[derive(Debug, Clone)]
 pub struct Partition{
@@ -49,6 +49,12 @@ impl Deref for PartitionIndex {
 impl PartitionIndex {
     pub fn new(v:u32) -> Self{
         Self(v)
+    }
+}
+impl TryExtract for PartitionIndex {
+    fn try_extract(value: &[u8]) -> Result<(Self, &'static [u8])> {
+        let (v,rest) = value.extract_u32()?;
+        Ok((Self::new(v),rest))
     }
 }
 #[derive(Debug, Clone)]
@@ -265,7 +271,7 @@ impl Deref for PartitionMaxBytes {
 pub struct RackId(String);
 
 impl RackId {
-    pub fn new(v:&str) -> Self {
-        Self(v.to_string())
+    pub fn new(v:String) -> Self {
+        Self(v)
     }
 }

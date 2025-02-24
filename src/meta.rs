@@ -5,7 +5,7 @@ use bytes::Buf;
 use pretty_hex::*;
 use uuid::Uuid;
 
-use crate::{AddingReplica, Context, Error, ISRNode, Leader, LeaderEpoch, MapTupleTwo, PartitionIndex, read, RemovingReplica, ReplicaNode, Result, SignedVarInt, TopicId, TopicName, VarInt};
+use crate::{AddingReplica, BytesOps, Context, Error,ISRNode, Leader, LeaderEpoch, MapTupleTwo, PartitionIndex, read, RemovingReplica, ReplicaNode, Result, SignedVarInt, TopicId, TopicName, VarInt};
 use crate::Record::PartitionRecord;
 
 // https://binspec.org/kafka-cluster-metadata
@@ -18,7 +18,6 @@ impl Meta {
         Self(v)
     }
     pub fn load(path: &str) -> Result<Self> {
-
         read(path)
             .and_then(Self::split_by_batch)
             .map(Self::new)
@@ -28,8 +27,8 @@ impl Meta {
             if v.is_empty() {
                 Ok(result)
             } else {
-                let (batch_length, rest) = extract_u32(&v[8..])?;
-                let (batch, rest) = rest.split_at_checked(batch_length as usize).context("create batch")?;
+                let (batch_length, rest) = v.drop(8).second().and_then(|e|e.extract_u32())?;
+                let (batch, rest) = rest.drop(batch_length as usize)?;
                 println!("batch: {:?}", batch);
                 result.push(Batch::mk(batch)?);
                 do_split(rest, result)
@@ -122,14 +121,14 @@ impl Record {
             })?;
 
 
-        let (replicas, rest) = extract_array(rest, ReplicaNode::new)?;
+        let (replicas, rest) = rest.extract_array(ReplicaNode::new)?;
 
-        let (isrs, rest) = extract_array(rest, ISRNode::new)?;
-        let (removing, rest) = extract_array(rest, RemovingReplica::new)?;
-        let (adding, rest) = extract_array(rest, AddingReplica::new)?;
+        let (isrs, rest) = rest.extract_array(ISRNode::new)?;
+        let (removing, rest) = rest.extract_array(RemovingReplica::new)?;
+        let (adding, rest) = rest.extract_array(AddingReplica::new)?;
 
-        let (leader, rest) = extract_u32_into(rest, Leader::new)?;
-        let (leader_epoch, rest) = extract_u32_into(rest, LeaderEpoch::new)?;
+        let (leader, rest) = rest.extract_u32_into(Leader::new)?;
+        let (leader_epoch, rest) = rest.extract_u32_into(LeaderEpoch::new)?;
 
         Ok(Record::PartitionRecord(partition_index, topic_id, leader, leader_epoch, replicas, isrs, adding, removing))
     }
@@ -150,33 +149,7 @@ impl Record {
     }
 }
 
-fn extract_u32(bytes: &[u8]) -> Result<(u32, &[u8])> {
-    bytes.split_at_checked(4).map(|(mut l, rest)| {
-        (l.get_u32(), rest)
-    }).context("Extract  u32")
-}
-fn extract_u32_into<T, F>(bytes: &[u8], f: F) -> Result<(T, &[u8])>
-where
-    F: FnOnce(u32) -> T,
-{
-  extract_u32(bytes).map(|(v,rest)|(f(v), rest))
-}
-fn extract_array<T, F>(bytes: &[u8], mut f: F) -> Result<(Vec<T>, &[u8])>
-where
-    F: FnMut(u32) -> T,
-{
 
-    let (len, rest) = VarInt::decode(bytes).map_tuple(|v|
-        v.value() - 1
-    )?;
-
-    rest.split_at_checked(len*4).map(|(replicas, rest)| {
-        let r: Vec<T> = replicas.chunks(32).map(|mut rep| {
-            f(rep.get_u32())
-        }).collect();
-        (r, rest)
-    }).context("")
-}
 
 
 

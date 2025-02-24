@@ -25,17 +25,9 @@ pub enum Version {
     V15,
     V16,
 }
-impl Version {
-    pub fn mk(bytes:&[u8]) -> Result<Self> {
-        bytes.try_into()
-            .with_context(||"not able to read Stream")
-            .map(i16::from_be_bytes)
-            .and_then(Version::try_from)
-    }
-}
-impl TryFrom<i16> for Version {
+impl TryFrom<u16> for Version {
     type Error = Error;
-    fn try_from(value: i16) -> Result<Self> {
+    fn try_from(value: u16) -> Result<Self> {
         use Version::*;
         match value {
             0 => Ok(V0),
@@ -61,7 +53,7 @@ impl TryFrom<i16> for Version {
 }
 
 impl Deref for Version {
-    type Target = i16;
+    type Target = u16;
 
     fn deref(&self) -> &Self::Target {
         use Version::*;
@@ -93,18 +85,9 @@ pub enum ApiKey {
     Fetch
 }
 
-impl ApiKey {
-    pub fn mk(bytes:&[u8]) -> Result<Self> {
-        bytes.try_into()
-            .with_context(||"not able to read stream for ApiKey")
-            .map(i16::from_be_bytes)
-            .and_then(ApiKey::try_from)
-    }
-}
-
-impl TryFrom<i16> for ApiKey {
+impl TryFrom<u16> for ApiKey {
     type Error = Error;
-    fn try_from(value: i16) -> Result<Self> {
+    fn try_from(value: u16) -> Result<Self> {
         match value {
             18 => Ok(ApiKey::ApiVersions),
             75 => Ok(ApiKey::DescribeTopicPartitions),
@@ -114,13 +97,13 @@ impl TryFrom<i16> for ApiKey {
     }
 }
 impl Deref for ApiKey {
-    type Target = i16;
+    type Target = u16;
 
     fn deref(&self) -> &Self::Target {
         match &self   {
-            ApiKey::ApiVersions =>  &18i16,
-            ApiKey::DescribeTopicPartitions => &75i16,
-            ApiKey::Fetch => &1i16,
+            ApiKey::ApiVersions =>  &18u16,
+            ApiKey::DescribeTopicPartitions => &75u16,
+            ApiKey::Fetch => &1u16,
         }
     }
 }
@@ -184,9 +167,9 @@ impl Api {
 impl From<Api> for Vec<u8> {
     fn from(value: Api) -> Self {
         let mut bytes: Vec<u8> = Vec::new();
-        bytes.put_i16(*value.api_key());
-        bytes.put_i16(*value.min());
-        bytes.put_i16(*value.max());
+        bytes.put_u16(*value.api_key());
+        bytes.put_u16(*value.min());
+        bytes.put_u16(*value.max());
         bytes.put_u8(*value.tagged_fields());
         bytes
     }
@@ -227,21 +210,15 @@ impl Deref for ErrorCode {
     }
 }
 #[derive(Debug, Clone, Copy)]
-pub struct CorrelationId(i32);
+pub struct CorrelationId(u32);
 impl CorrelationId {
-    pub fn new(value: i32) -> Self {
+    pub fn new(value: u32) -> Self {
         Self(value)
-    }
-    pub fn mk(bytes:&[u8]) -> Result<CorrelationId> {
-        bytes.try_into()
-            .with_context(||"not able  to read stream for CorrelationId")
-            .map(i32::from_be_bytes)
-            .map(CorrelationId::new)
     }
 }
 
 impl Deref for CorrelationId {
-    type Target = i32;
+    type Target = u32;
 
     fn deref(&self) -> &Self::Target {
        &self.0
@@ -273,11 +250,6 @@ impl ClientId {
     pub fn new(str:String) -> Self {
         Self(str)
     }
-    pub fn mk(bytes:&[u8]) -> Result<Self> {
-        String::from_utf8(bytes.to_vec())
-            .context("not able mk ClientId")
-            .map(ClientId::new)
-    }
 }
 
 #[derive(Debug,Clone)]
@@ -299,12 +271,6 @@ impl From<Length> for usize {
 impl Length {
     pub fn new(v:i16) -> Self {
         Self(v)
-    }
-    pub fn mk(bytes:&[u8]) -> Result<Self> {
-        bytes.try_into()
-            .context("not able mk Length")
-            .map(i16::from_be_bytes)
-            .map(Length::new)
     }
 }
 #[derive(Debug,Clone)]
@@ -401,6 +367,7 @@ impl HighWatermark {
     pub fn new(v:u64) -> Self {
         Self(v)
     }
+
 }
 
 impl Deref for HighWatermark {

@@ -2,7 +2,7 @@ use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::net::TcpStream;
 
-use crate::{ApiKey, ClientId, Context, CorrelationId, Cursor, FetchTopic, IsolationLevel, Length, MaxBytes, MaxWait, MessageSize, MinBytes, Result, SessionEpoch, SessionId, TopicName, Version};
+use crate::{ApiKey, BytesOps, ClientId, Context, CorrelationId, Cursor, FetchTopic, IsolationLevel, Length, MapTupleTwo, MaxBytes, MaxWait, MessageSize, MinBytes, Result, SessionEpoch, SessionId, Topic, TopicName, Version};
 use crate::error::Error;
 
 #[derive(Debug, Clone)]
@@ -44,16 +44,16 @@ pub enum RequestBody {
     },
 }
 impl RequestBody {
-    pub fn mk(api_key: ApiKey, body: &[u8]) -> Result<Self> {
+    pub fn mk(api_key: ApiKey, body: &'static[u8]) -> Result<Self> {
         match api_key {
             ApiKey::ApiVersions => Ok(RequestBody::ApiVersions),
-            ApiKey::DescribeTopicPartitions => Self::mk_describe_topic_partitions(body),
-            ApiKey::Fetch => Self::mk_fetch(body)
+            ApiKey::DescribeTopicPartitions => Self::describe_topic_partitions(body),
+            ApiKey::Fetch => Self::fetch(body)
         }
     }
-    fn mk_describe_topic_partitions(body: &[u8]) -> Result<Self> {
+    fn describe_topic_partitions(body: &[u8]) -> Result<Self> {
 
-        fn mk_topic_name(bytes: &[u8], mut result: Vec<TopicName>, len:u8) -> Result<Vec<TopicName>> {
+        fn topic_name(bytes: &[u8], mut result: Vec<TopicName>, len:u8) -> Result<Vec<TopicName>> {
             if result.len() as u8 == len {
                 Ok(result)
             } else {
@@ -62,12 +62,12 @@ impl RequestBody {
                     .context("create a topic name")
                     .map(TopicName::new)?;
                 result.push(name);
-                mk_topic_name(&bytes[length + 1..], result, len)
+                topic_name(&bytes[length + 1..], result, len)
             }
         }
 
         let array_length: u8 = body[0] - 1;
-        let topics: Vec<TopicName> = mk_topic_name(&body[1..], vec![], array_length)?;
+        let topics: Vec<TopicName> = topic_name(&body[1..], vec![], array_length)?;
         let topics_size = topics.iter().fold(0, |acc, v| acc + (*v).len()) + 1;
         let limit = ResponsePartitionLimit::mk(&body[topics_size..topics_size + 4])?;
         let cursor = Cursor::mk(body[topics_size + 4]);
@@ -78,15 +78,22 @@ impl RequestBody {
             cursor,
         })
     }
-    fn mk_fetch(body: &[u8])->Result<Self>{
+    fn fetch(body: &'static[u8]) ->Result<Self>{
+        let (max_wait, rest) = body.extract_u32_into(MaxWait::new)?;
+        let (min_bytes, rest) = rest.extract_u32_into(MinBytes::new)?;
+        let (max_bytes, rest) = rest.extract_u32_into(MaxBytes::new)?;
+        let (isolation_level    , rest) = rest.extract_u8_into(IsolationLevel::new)?;
+        let (session_id, rest) = rest.extract_u32_into(SessionId::new)?;
+        let (session_epoch, rest) = rest.extract_u32_into(SessionEpoch::new)?;
+        let (topics,_) = rest.extract_array_into()?;
         Ok(RequestBody::Fetch {
-            max_wait: MaxWait::new(0),
-            min_bytes: MinBytes::new(0),
-            max_bytes: MaxBytes::new(0),
-            isolation_level: IsolationLevel::new(0),
-            session_id: SessionId::new(0),
-            session_epoch: SessionEpoch::new(0),
-            topics: vec![],
+            max_wait,
+            min_bytes,
+            max_bytes,
+            isolation_level,
+            session_id,
+            session_epoch,
+            topics,
         })
     }
 
@@ -125,23 +132,27 @@ impl TryFrom<&mut TcpStream> for Request {
         let message_size = message_size(stream)?;
         println!("message size {:?}", message_size);
         let mut request: Vec<u8> = vec![0; *message_size as usize];
-        stream.read_exact(&mut request).with_context(|| "not able to read stream")?;
+        stream.read_exact(&mut request).context("not able to read stream")?;
         println!("{:?}", request);
-        let correlation_id: CorrelationId = CorrelationId::mk(request[4..8].as_ref())?;
+        let (correlation_id,_) = request[4..8].as_ref().extract_u32_into(CorrelationId::new)?;
 
-        let api_key = ApiKey::mk(request[0..2].as_ref())
-            .map_err(|e| e.with_correlation_id(correlation_id))?;
+        let (api_key,rest) = request
+            .as_slice()
+            .extract_u16()
+            .fmap_tuple(TryFrom::try_from)
+            .map_err(Error::set_correlation_id(correlation_id))?;
 
-        let api_version: Version = Version::mk(request[2..4].as_ref())
-            .map_err(|e| e.with_correlation_id(correlation_id))?;
+        let (api_version, rest) = rest
+            .extract_u16()
+            .fmap_tuple(TryFrom::try_from)
+            .map_err(Error::set_correlation_id(correlation_id))?;
 
-        let client_id_length: usize = Length::mk(&request[8..10]).map(|e| e.into())?;
-        let body_start: usize = 10usize + client_id_length;
-        let client_id = ClientId::mk(&request[10..body_start])?;
+        let (_, rest) = rest.drop(4)?; //drop correlation_id
+        let (client_id, rest) = rest.extract_compact_str().map_tuple(ClientId::new) ?;
         println!("client_id {:?}", client_id);
         let header = RequestHeader::new(api_key, api_version, correlation_id, client_id);
         println!("header {:?}", header);
-        let body = RequestBody::mk(header.api_key, &request[body_start + 1..])?;
+        let body = RequestBody::mk(header.api_key, rest)?;
         Ok(Request::new(header, body))
     }
 }

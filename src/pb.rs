@@ -1,4 +1,6 @@
-use crate::{Error, MapTupleTwo, Result};
+use std::str::from_utf8;
+use bytes::Buf;
+use crate::{Context, Error, MapTupleTwo, Result};
 
 #[derive(Debug, Clone)]
 pub struct SignedVarInt{
@@ -72,6 +74,102 @@ impl VarInt {
         self.value as usize
     }
 
+}
+
+pub trait BytesOps {
+    type R;
+    fn  extract_u32(self)-> Result<(u32, Self::R)>;
+    fn  extract_u64(self)-> Result<(u64, Self::R)>;
+    fn  extract_u8(self)-> Result<(u8, Self::R)>;
+    fn  extract_u16(self)-> Result<(u16, Self::R)>;
+    fn extract_u16_into<T>(self, f: impl FnOnce(u16) -> T) -> Result<(T, Self::R)> where Self: Sized {
+        Self::extract_u16(self).map_tuple(f)
+    }
+    fn extract_u32_into<T>(self, f: impl FnOnce(u32) -> T) -> Result<(T, Self::R)>  where Self: Sized{
+        Self::extract_u32(self).map_tuple(f)
+    }
+    fn extract_u64_into<T>(self, f: impl FnOnce(u64) -> T) -> Result<(T, Self::R)>  where Self: Sized{
+        Self::extract_u64(self).map_tuple(f)
+    }
+    fn extract_u8_into<T>(self, f: impl FnOnce(u8) -> T) -> Result<(T, Self::R)>  where Self: Sized{
+        Self::extract_u8(self).map_tuple(f)
+    }
+    fn extract_array<T:Clone>(self, f: impl FnMut(u32) -> T) -> Result<(Vec<T>, Self::R)>;
+    fn extract_array_into<T: TryExtract>(self) -> Result<(Vec<T>, Self::R)>;
+    fn drop<'a>(self, num:usize)->Result<(&'a [u8],&'a [u8])>;
+    fn extract_compact_str(self) -> Result<(String, &'static [u8])>;
+}
+
+impl BytesOps for &[u8] {
+    type R = &'static[u8];
+
+    fn extract_u32(self)-> Result<(u32, Self::R)> {
+        self.drop(4).map_tuple(move |mut l| {
+            l.get_u32()
+        })
+    }
+
+    fn extract_u64(self) -> Result<(u64, Self::R)> {
+        self.drop(8).map_tuple(|mut l| {
+            l.get_u64()
+        })
+    }
+
+    fn extract_u8(self) -> Result<(u8, Self::R)> {
+        self.drop(1).map_tuple(|mut l| {
+            l.get_u8()
+        })
+    }
+
+    fn extract_u16(self) -> Result<(u16, Self::R)> {
+        self.drop(2).map_tuple(|mut l| {
+            l.get_u16()
+        })
+    }
+
+    fn extract_array<T:Clone>(self, mut f: impl FnMut(u32) -> T) -> Result<(Vec<T>, Self::R)>  {
+
+        let (len, rest) = VarInt::decode(self).map_tuple(|v|
+            v.value() - 1
+        )?;
+
+        rest.drop(len*4).map_tuple(|replicas| {
+            let r: Vec<T> = replicas.chunks(32).map(|mut rep| {
+                f(rep.get_u32())
+            }).collect();
+            r
+        })
+    }
+
+
+    fn extract_array_into<T: TryExtract>(self) -> Result<(Vec<T>, Self::R)> {
+        fn do_split<T: TryExtract>(v: &[u8], mut result: Vec<T>) -> Result<Vec<T>> {
+            if v.is_empty() {
+                Ok(result)
+            } else {
+                let (value,rest)= T::try_extract(v)?;
+                result.push(value);
+                do_split(rest, result)
+            }
+        }
+        let (array, rest)= VarInt::decode(&self).and_then(|(v,rest)| rest.drop(v.value() -1))?;
+        Ok((do_split(&array, vec![])?,rest))
+    }
+
+    fn drop<'a>(self, num: usize) -> Result<(&'a [u8],&'a [u8])> {
+        self.split_at_checked(num).context("drop")
+    }
+
+    fn extract_compact_str(self) -> Result<(String, &'static [u8])> {
+        let (str, rest)= VarInt::decode(&self).and_then(|(v,rest)| rest.drop(v.value() -1))?;
+        Ok((from_utf8(str).map(|v|v.to_string())?,rest))
+    }
+
+
+}
+
+pub trait TryExtract {
+    fn try_extract(v:&[u8]) -> Result<(Self, &'static[u8])> where Self:Sized;
 }
 
 #[cfg(test)]

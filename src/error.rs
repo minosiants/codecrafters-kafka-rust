@@ -12,11 +12,11 @@ pub type Result<E> = std::result::Result<E, Error>;
 #[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("Unsupported Api Version {}", .0)]
-    UnsupportedApiVersion(i16, Option<CorrelationId>),
+    UnsupportedApiVersion(u16, Option<CorrelationId>),
     #[error("Unsupported Api Key {}", .0)]
-    UnsupportedApiKey(i16, Option<CorrelationId>),
+    UnsupportedApiKey(u16, Option<CorrelationId>),
     #[error("Unknown Topic or Partition {}", .0)]
-    UnknownTopicOrPartition(i16, Option<CorrelationId>),
+    UnknownTopicOrPartition(u16, Option<CorrelationId>),
     #[error("Error Wrapper {}", .0)]
     ErrorWrapper(String, Arc<dyn std::error::Error + Send + Sync + 'static>),
     #[error("Failed to convert bytes to string: {0}")]
@@ -45,6 +45,9 @@ impl Error {
             _ => self.clone()
         }
     }
+    pub fn set_correlation_id(id:CorrelationId) -> impl FnOnce(Error) -> Self {
+        move |e| e.with_correlation_id(id)
+    }
     pub fn general(v:&str) -> Self {
         GeneralError(v.to_string())
     }
@@ -67,6 +70,9 @@ pub trait MapTupleTwo<A, C> {
     fn fmap_tuple<B, F>(self, op:F) -> Result<(B,C)>
     where
         F:FnOnce(A) -> Result<B>;
+
+    fn first(self) -> Result<A>;
+    fn second(self) -> Result<C>;
 }
 
 impl <A, C> MapTupleTwo<A,C> for Result<(A,C)> {
@@ -82,6 +88,13 @@ impl <A, C> MapTupleTwo<A,C> for Result<(A,C)> {
         F: FnOnce(A) -> Result<B>
     {
         self.and_then(|(a,c)|op(a).map(|b| (b,c)))
+    }
+
+    fn first(self) -> Result<A> {
+        self.map(|(a,_)|a)
+    }
+    fn second(self) -> Result<C> {
+       self.map(|(_,b)|b)
     }
 }
 impl<T, E> Context<T, E> for std::result::Result<T, E>

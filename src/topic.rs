@@ -1,6 +1,6 @@
 use std::ops::Deref;
 use bytes::BufMut;
-use crate::{ErrorCode, Partition, TagBuffer, VarInt};
+use crate::{Context, ErrorCode, Partition, TagBuffer, VarInt, Result};
 use uuid::*;
 #[derive(Debug, Clone)]
 pub struct Topic{
@@ -84,6 +84,9 @@ pub struct TopicId(Uuid);
 impl TopicId {
     pub fn new(id:Uuid) -> Self {
         Self(id)
+    }
+    pub fn mk(v:&[u8]) -> Result<Self> {
+        Uuid::from_slice(v).context("uuid").map(Self::new)
     }
     pub fn zero() -> Self {
         Self::new(Uuid::parse_str(&"00000000-0000-0000-0000-000000000000").unwrap())
