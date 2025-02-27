@@ -98,15 +98,21 @@ impl Response {
             RequestBody::Fetch{ max_wait, min_bytes, max_bytes, isolation_level, session_id, session_epoch, topics } => {
                 match request.header.api_version() {
                     Version::V16 => {
+                        let meta = Meta::load("/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log")?;
                         Ok(ResponseBody::Fetch {
                             throttle_time:ThrottleTime::zero(),
                             session_id:session_id.clone(),
-                            responses:topics.iter().map(|t|
+                            responses:topics.iter().map(|t|{
+                                let records = meta.find_partitions(&t.topic_id());
+                                let fp = if records.is_empty() {
+                                    FetchPartitionResponse::unknown(PartitionIndex::new(0))
+                                } else {
+                                    FetchPartitionResponse::new(PartitionIndex::new(0))
+                                };
                                 FetchResponse::new(
                                     t.topic_id(),
-                                    vec![FetchPartitionResponse::unknown(PartitionIndex::new(0))]
-                            )
-                            ).collect()
+                                    vec![fp]
+                            )}).collect()
                         })
                     }
                     _  => {

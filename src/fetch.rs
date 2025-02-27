@@ -141,6 +141,18 @@ impl From<FetchPartitionResponse> for Vec<u8> {
     }
 }
 impl FetchPartitionResponse {
+    pub fn
+    new(partition_index: PartitionIndex) -> Self {
+        Self{
+            partition_index,
+            error_code:ErrorCode::NoError,
+            high_watermark:HighWatermark::new(0),
+            last_stable_offset:LastStableOffset::new(0),
+            log_start_offset:LogStartOffset::new(0),
+            aborted_transactions:vec![],
+            preferred_read_replica:PreferredReadReplica::new(0)
+        }
+    }
     pub fn unknown(partition_index: PartitionIndex) -> Self {
         Self{
             partition_index,
