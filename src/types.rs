@@ -108,31 +108,31 @@ impl Deref for ApiKey {
     }
 }
 #[derive(Debug, Copy, Clone)]
-pub struct MessageSize(i32);
+pub struct MessageSize(u32);
 
 impl MessageSize {
-    pub fn new(value:i32) -> Self {
+    pub fn new(value:u32) -> Self {
         MessageSize(value)
     }
     pub fn try_from_bytes(value:[u8;4]) -> Result<Self> {
-        Ok(Self(i32::from_be_bytes(value)))
+        Ok(Self(u32::from_be_bytes(value)))
     }
 }
-impl AsRef<i32> for MessageSize{
-    fn as_ref(&self) -> &i32 {
+impl AsRef<u32> for MessageSize{
+    fn as_ref(&self) -> &u32 {
         &self.0
     }
 }
 
 impl Deref for MessageSize{
-    type Target = i32;
+    type Target = u32;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
-impl From<i32> for MessageSize {
-    fn from(value: i32) -> Self {
+impl From<u32> for MessageSize {
+    fn from(value: u32) -> Self {
         MessageSize(value)
     }
 }
@@ -196,6 +196,7 @@ impl Deref for TagBuffer {
 pub enum ErrorCode {
     UnsupportedVersion,
     NoError,
+    UnknownTopicOrPartition,
     UnknownTopic
 }
 impl Deref for ErrorCode {
@@ -205,7 +206,8 @@ impl Deref for ErrorCode {
         match &self {
             ErrorCode::UnsupportedVersion => &35i16,
             ErrorCode::NoError => &0i16,
-            ErrorCode::UnknownTopic => &3i16
+            ErrorCode::UnknownTopicOrPartition => &3i16,
+            ErrorCode::UnknownTopic => &100i16
         }
     }
 }
@@ -247,8 +249,8 @@ impl Deref for ThrottleTime {
 pub struct ClientId(String);
 
 impl ClientId {
-    pub fn new(str:String) -> Self {
-        Self(str)
+    pub fn new(str:&str) -> Self {
+        Self(str.to_string())
     }
 }
 

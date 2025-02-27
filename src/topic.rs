@@ -28,7 +28,7 @@ impl Topic {
     }
     pub fn unknown(name:TopicName) -> Self {
         Self{
-            error_code:ErrorCode::UnknownTopic,
+            error_code:ErrorCode::UnknownTopicOrPartition,
             name,
             id:TopicId::zero(),
             is_internal:false,

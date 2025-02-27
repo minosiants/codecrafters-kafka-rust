@@ -52,7 +52,7 @@ impl PartitionIndex {
     }
 }
 impl TryExtract for PartitionIndex {
-    fn try_extract(value: &[u8]) -> Result<(Self, &'static [u8])> {
+    fn try_extract(value: &[u8]) -> Result<(Self, &[u8])> {
         let (v,rest) = value.extract_u32()?;
         Ok((Self::new(v),rest))
     }

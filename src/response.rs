@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use bytes::BufMut;
 
-use crate::{Api, ApiKey, CorrelationId, Error, ErrorCode, FetchResponse, Meta, Partition, read, Record, Request, RequestBody, Result, SessionId, TagBuffer, ThrottleTime, Topic, TopicId, VarInt, Version};
+use crate::{Api, ApiKey, CorrelationId, Error, ErrorCode, FetchPartitionResponse, FetchResponse, Meta, Partition, PartitionIndex, read, Record, Request, RequestBody, Result, SessionId, TagBuffer, ThrottleTime, Topic, TopicId, VarInt, Version};
 
 #[derive(Debug, Clone)]
 pub enum ResponseBody {
@@ -96,11 +96,24 @@ impl Response {
                 }
             }
             RequestBody::Fetch{ max_wait, min_bytes, max_bytes, isolation_level, session_id, session_epoch, topics } => {
-                Ok(ResponseBody::Fetch {
-                    throttle_time:ThrottleTime::zero(),
-                    session_id:session_id.clone(),
-                    responses:vec![]
-                })
+                match request.header.api_version() {
+                    Version::V16 => {
+                        Ok(ResponseBody::Fetch {
+                            throttle_time:ThrottleTime::zero(),
+                            session_id:session_id.clone(),
+                            responses:topics.iter().map(|t|
+                                FetchResponse::new(
+                                    t.topic_id(),
+                                    vec![FetchPartitionResponse::unknown(PartitionIndex::new(0))]
+                            )
+                            ).collect()
+                        })
+                    }
+                    _  => {
+                        Err(Error::UnsupportedApiVersion(2, Some(request.header.correlation_id())))
+                    }
+                }
+
             }
         };
         println!("response: {:?}", body);

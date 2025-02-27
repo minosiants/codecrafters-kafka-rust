@@ -1,7 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::net::TcpStream;
-
+use pretty_hex::{pretty_hex, PrettyHex, simple_hex};
 use crate::{ApiKey, BytesOps, ClientId, Context, CorrelationId, Cursor, FetchTopic, IsolationLevel, Length, MapTupleTwo, MaxBytes, MaxWait, MessageSize, MinBytes, Result, SessionEpoch, SessionId, Topic, TopicName, Version};
 use crate::error::Error;
 
@@ -44,7 +44,7 @@ pub enum RequestBody {
     },
 }
 impl RequestBody {
-    pub fn mk(api_key: ApiKey, body: &'static[u8]) -> Result<Self> {
+    pub fn mk(api_key: ApiKey, body: &[u8]) -> Result<Self> {
         match api_key {
             ApiKey::ApiVersions => Ok(RequestBody::ApiVersions),
             ApiKey::DescribeTopicPartitions => Self::describe_topic_partitions(body),
@@ -78,13 +78,19 @@ impl RequestBody {
             cursor,
         })
     }
-    fn fetch(body: &'static[u8]) ->Result<Self>{
+    fn fetch(body: &[u8]) ->Result<Self>{
+        println!("fetch {:?}", simple_hex(&body));
         let (max_wait, rest) = body.extract_u32_into(MaxWait::new)?;
+        println!("max_wait {:?}", max_wait);
         let (min_bytes, rest) = rest.extract_u32_into(MinBytes::new)?;
         let (max_bytes, rest) = rest.extract_u32_into(MaxBytes::new)?;
         let (isolation_level    , rest) = rest.extract_u8_into(IsolationLevel::new)?;
+        println!("isolation_level {:?}", isolation_level);
         let (session_id, rest) = rest.extract_u32_into(SessionId::new)?;
+        println!("session_id {:?}", session_id);
         let (session_epoch, rest) = rest.extract_u32_into(SessionEpoch::new)?;
+        println!("session_epoch {:?}", session_epoch);
+        println!("topics {:?}", rest.hex_dump());
         let (topics,_) = rest.extract_array_into()?;
         Ok(RequestBody::Fetch {
             max_wait,
@@ -135,24 +141,24 @@ impl TryFrom<&mut TcpStream> for Request {
         stream.read_exact(&mut request).context("not able to read stream")?;
         println!("{:?}", request);
         let (correlation_id,_) = request[4..8].as_ref().extract_u32_into(CorrelationId::new)?;
-
+        println!("correlation_id {:?}", correlation_id);
         let (api_key,rest) = request
             .as_slice()
             .extract_u16()
             .fmap_tuple(TryFrom::try_from)
             .map_err(Error::set_correlation_id(correlation_id))?;
-
+        println!("api_key {:?}", api_key);
         let (api_version, rest) = rest
             .extract_u16()
             .fmap_tuple(TryFrom::try_from)
             .map_err(Error::set_correlation_id(correlation_id))?;
-
-        let (_, rest) = rest.drop(4)?; //drop correlation_id
-        let (client_id, rest) = rest.extract_compact_str().map_tuple(ClientId::new) ?;
+        println!("api_version {:?}", api_version);
+        let (client_id_length, rest) = rest.drop(4).second().and_then(|v|v.extract_u16())?; //drop correlation_id
+        let (client_id, rest) = rest.extract_str(client_id_length as usize).map_tuple(ClientId::new)?;
         println!("client_id {:?}", client_id);
         let header = RequestHeader::new(api_key, api_version, correlation_id, client_id);
         println!("header {:?}", header);
-        let body = RequestBody::mk(header.api_key, rest)?;
+        let body = RequestBody::mk(header.api_key, rest.drop(1).second()?)?;
         Ok(Request::new(header, body))
     }
 }
@@ -161,4 +167,29 @@ fn message_size(stream: &mut TcpStream) -> Result<MessageSize> {
     let mut result = [0u8; 4];
     stream.read_exact(&mut result).with_context(|| "MessageSize is not valid")?;
     MessageSize::try_from_bytes(result)
+}
+
+
+#[cfg(test)]
+mod test {
+    use std::str::from_utf8;
+    use hex::decode;
+    use crate::{BytesOps, FetchTopic, MapTupleTwo, Result};
+
+
+    #[test]
+    fn test_fetch() {
+        use super::*;
+        let data:String = vec![
+            "00 00 01 f4  00 00 00 01  03 20 00 00  00 00 00 00",
+            "00 00 00 00  00 02 00 00  00 00 00 00  00 00 00 00",
+            "00 00 00 00  43 35 02 00  00 00 00 ff  ff ff ff 00",
+            "00 00 00 00  00 00 00 ff  ff ff ff ff  ff ff ff ff",
+            "ff ff ff 00  10 00 00 00  00 01 01 00"
+        ].join("").replace(" ", "");
+        let bytes = decode(data).expect("");
+        let req = RequestBody::fetch(&bytes);
+
+        println!("req {:?}",req)
+    }
 }

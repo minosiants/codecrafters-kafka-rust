@@ -8,8 +8,8 @@ use codecrafters_kafka::{Context, CorrelationId, Error, ErrorCode, MessageSize, 
 
 fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     let mut error: Vec<u8> = Vec::new();
-    error.put_i32(*MessageSize::new(10));
-    error.put_i32(**correlation_id);
+    error.put_u32(*MessageSize::new(10));
+    error.put_u32(**correlation_id);
     error.put_i16(*ErrorCode::UnsupportedVersion);
     error
 }
