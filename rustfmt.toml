@@ -1,0 +1,6 @@
+enum_discrim_align_threshold = 0
+struct_field_align_threshold = 0
+format_code_in_doc_comments = true
+max_width = 80  # Lower this to force splitting sooner
+use_small_heuristics = "Off"  # More aggressive splitting Optional: Lower this
+match_arm_blocks = false

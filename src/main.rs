@@ -3,8 +3,11 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 use bytes::BufMut;
+use codecrafters_kafka::{
+    Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response,
+    Result,
+};
 use pretty_hex::simple_hex;
-use codecrafters_kafka::{Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response, Result};
 
 fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     let mut error: Vec<u8> = Vec::new();
@@ -14,34 +17,32 @@ fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     error
 }
 
-
-fn process_stream(stream:&mut TcpStream) -> Result<Vec<u8>> {
+fn process_stream(stream: &mut TcpStream) -> Result<Vec<u8>> {
     println!("accepted new connection");
-    let req:Result<Request> = stream.try_into();
+    let req: Result<Request> = stream.try_into();
     println!("req {:?}", req);
-    let res:Vec<u8> = req.and_then(|r|Response::response(&r))
+    let res: Vec<u8> = req
+        .and_then(|r| Response::response(&r))
         .map(|v| v.into())
-        .unwrap_or_else(|e|
-                 match e {
-                     Error::UnsupportedApiVersion(_, Some(id)) => {
-                         println!("unsupoeted api version: ");
-                         error_response(&id)
-                     }
-                     Error::UnsupportedApiKey(_, Some(id)) => {
-                         println!("unsuported api key");
-                         error_response(&id)
-                     }
-                     Error::ErrorWrapper(txt, err) => {
-                         println!("txt: {}", txt);
-                         println!("err: {:?}", err);
-                         Vec::new()
-                     }
-                     e => {
-                         println!("err {}", e);
-                         Vec::new()
-                     }
-
-         });
+        .unwrap_or_else(|e| match e {
+            Error::UnsupportedApiVersion(_, Some(id)) => {
+                println!("unsupoeted api version: ");
+                error_response(&id)
+            }
+            Error::UnsupportedApiKey(_, Some(id)) => {
+                println!("unsuported api key");
+                error_response(&id)
+            }
+            Error::ErrorWrapper(txt, err) => {
+                println!("txt: {}", txt);
+                println!("err: {:?}", err);
+                Vec::new()
+            }
+            e => {
+                println!("err {}", e);
+                Vec::new()
+            }
+        });
     Ok(res)
 }
 
@@ -51,19 +52,18 @@ fn main() -> Result<()> {
 
     // Uncomment this block to pass the first stage
     //
-    let listener = TcpListener::bind("127.0.0.1:9092").with_context(||"Unable to create tcp listener")?;
+    let listener = TcpListener::bind("127.0.0.1:9092")
+        .with_context(|| "Unable to create tcp listener")?;
     let mut handlers = vec![];
     for stream in listener.incoming() {
-        let handler = thread::spawn(move ||{
-            match stream {
-                Ok(mut stream) => {
-                    while let Ok(resp) = process_stream(&mut stream) {
-                        stream.write(resp.as_ref()).context("").unwrap();
-                    }
+        let handler = thread::spawn(move || match stream {
+            Ok(mut stream) => {
+                while let Ok(resp) = process_stream(&mut stream) {
+                    stream.write(resp.as_ref()).context("").unwrap();
                 }
-                Err(e) => {
-                    println!("error: {}", e);
-                }
+            }
+            Err(e) => {
+                println!("error: {}", e);
             }
         });
         handlers.push(handler);

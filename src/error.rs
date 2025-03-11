@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::num::TryFromIntError;
 use std::str::Utf8Error;
 use std::sync::Arc;
 
@@ -22,33 +23,30 @@ pub enum Error {
     #[error("Failed to convert bytes to string: {0}")]
     Utf8ConversionError(#[from] Utf8Error),
     #[error("Failed to create uuid: {0}")]
-    UuidError(#[from] uuid::Error),
+    UuidError(#[from]  uuid::Error),
+    #[error("Failed to convert to int: {0}")]
+    TryFromInt(#[from]  TryFromIntError),
     #[error("Unknown Batch Record Type {0}")]
     UnknownRecordType(u8),
     #[error("General Error {0}")]
     GeneralError(String),
-
 }
 impl Error {
     pub fn with_correlation_id(&self, id: CorrelationId) -> Self {
         use Error::*;
         match self {
-            UnsupportedApiVersion(v, _) => {
-                UnsupportedApiVersion(*v, Some(id))
-            }
-            UnsupportedApiKey(v, _) => {
-                UnsupportedApiKey(*v, Some(id))
-            }
+            UnsupportedApiVersion(v, _) => UnsupportedApiVersion(*v, Some(id)),
+            UnsupportedApiKey(v, _) => UnsupportedApiKey(*v, Some(id)),
             UnknownTopicOrPartition(v, _) => {
                 UnknownTopicOrPartition(*v, Some(id))
             }
-            _ => self.clone()
+            _ => self.clone(),
         }
     }
-    pub fn set_correlation_id(id:CorrelationId) -> impl FnOnce(Error) -> Self {
+    pub fn set_correlation_id(id: CorrelationId) -> impl FnOnce(Error) -> Self {
         move |e| e.with_correlation_id(id)
     }
-    pub fn general(v:&str) -> Self {
+    pub fn general(v: &str) -> Self {
         GeneralError(v.to_string())
     }
 }
@@ -63,38 +61,37 @@ pub trait Context<T, E> {
         F: FnOnce() -> C;
 }
 pub trait MapTupleTwo<A, C> {
-
-    fn map_tuple<B, F>(self, op:F) -> Result<(B,C)>
+    fn map_tuple<B, F>(self, op: F) -> Result<(B, C)>
     where
-        F:FnOnce(A) -> B;
-    fn fmap_tuple<B, F>(self, op:F) -> Result<(B,C)>
+        F: FnOnce(A) -> B;
+    fn fmap_tuple<B, F>(self, op: F) -> Result<(B, C)>
     where
-        F:FnOnce(A) -> Result<B>;
+        F: FnOnce(A) -> Result<B>;
 
     fn first(self) -> Result<A>;
     fn second(self) -> Result<C>;
 }
 
-impl <A, C> MapTupleTwo<A,C> for Result<(A,C)> {
+impl<A, C> MapTupleTwo<A, C> for Result<(A, C)> {
     fn map_tuple<B, F>(self, op: F) -> Result<(B, C)>
     where
-        F: FnOnce(A) -> B
+        F: FnOnce(A) -> B,
     {
-        self.map(|(a,c)|(op(a),c))
+        self.map(|(a, c)| (op(a), c))
     }
 
     fn fmap_tuple<B, F>(self, op: F) -> Result<(B, C)>
     where
-        F: FnOnce(A) -> Result<B>
+        F: FnOnce(A) -> Result<B>,
     {
-        self.and_then(|(a,c)|op(a).map(|b| (b,c)))
+        self.and_then(|(a, c)| op(a).map(|b| (b, c)))
     }
 
     fn first(self) -> Result<A> {
-        self.map(|(a,_)|a)
+        self.map(|(a, _)| a)
     }
     fn second(self) -> Result<C> {
-       self.map(|(_,b)|b)
+        self.map(|(_, b)| b)
     }
 }
 impl<T, E> Context<T, E> for std::result::Result<T, E>
@@ -105,9 +102,7 @@ where
     where
         C: Display + Send + Sync + 'static,
     {
-        self.map_err(|e| {
-            ErrorWrapper(context.to_string(), Arc::new(e))
-        })
+        self.map_err(|e| ErrorWrapper(context.to_string(), Arc::new(e)))
     }
 
     fn with_context<C, F>(self, context: F) -> Result<T>
@@ -135,4 +130,3 @@ impl<T> Context<T, Error> for Option<T> {
         self.ok_or(GeneralError(context().to_string()))
     }
 }
-

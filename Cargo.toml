@@ -11,3 +11,4 @@ thiserror = "2"                             # error handling
 uuid = { version = "1", features = ["v4", "serde"] }
 pretty-hex = "0.4"
 hex = "0.4.3"
+crc = "3.2.1"

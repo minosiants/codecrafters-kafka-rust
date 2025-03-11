@@ -1,30 +1,34 @@
-use std::ops::Deref;
-use crate::{BytesOps, Error, ErrorCode, TagBuffer, TopicId, VarInt, Result, TryExtract};
+use crate::{BytesOps, Error, ErrorCode, Result, TagBuffer, ToArray, TopicId, TryExtract, VarInt};
 use bytes::BufMut;
+use std::ops::Deref;
+use uuid::Uuid;
+
 #[derive(Debug, Clone)]
-pub struct Partition{
+pub struct Partition {
     error_code: ErrorCode,
     partition_index: PartitionIndex,
     leader_id: Leader,
     leader_epoch: LeaderEpoch,
     replica_nodes: Vec<ReplicaNode>,
-    isr_nodes:Vec<ISRNode>,
-    eligible_leader_replicas:Vec<EligibleLeaderReplicas>,
+    isr_nodes: Vec<ISRNode>,
+    eligible_leader_replicas: Vec<EligibleLeaderReplicas>,
     last_known_elrs: Vec<LastKnownELR>,
     offline_replicas: Vec<OfflineReplica>,
-    tag_buffer: TagBuffer
+    tag_buffer: TagBuffer,
 }
 impl Partition {
-    pub fn new(partition_index: PartitionIndex,
-               leader_id: Leader,
-               leader_epoch: LeaderEpoch,
-               replica_nodes: Vec<ReplicaNode>,
-               isr_nodes:Vec<ISRNode>,
-               eligible_leader_replicas:Vec<EligibleLeaderReplicas>,
-               last_known_elrs: Vec<LastKnownELR>,
-               offline_replicas: Vec<OfflineReplica>,) -> Self {
-        Self{
-            error_code:ErrorCode::NoError,
+    pub fn new(
+        partition_index: PartitionIndex,
+        leader_id: Leader,
+        leader_epoch: LeaderEpoch,
+        replica_nodes: Vec<ReplicaNode>,
+        isr_nodes: Vec<ISRNode>,
+        eligible_leader_replicas: Vec<EligibleLeaderReplicas>,
+        last_known_elrs: Vec<LastKnownELR>,
+        offline_replicas: Vec<OfflineReplica>,
+    ) -> Self {
+        Self {
+            error_code: ErrorCode::NoError,
             partition_index,
             leader_id,
             leader_epoch,
@@ -33,7 +37,7 @@ impl Partition {
             eligible_leader_replicas,
             last_known_elrs,
             offline_replicas,
-            tag_buffer:TagBuffer::zero()
+            tag_buffer: TagBuffer::zero(),
         }
     }
 }
@@ -47,20 +51,20 @@ impl Deref for PartitionIndex {
     }
 }
 impl PartitionIndex {
-    pub fn new(v:u32) -> Self{
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
 impl TryExtract for PartitionIndex {
     fn try_extract(value: &[u8]) -> Result<(Self, &[u8])> {
-        let (v,rest) = value.extract_u32()?;
-        Ok((Self::new(v),rest))
+        let (v, rest) = value.extract_u32()?;
+        Ok((Self::new(v), rest))
     }
 }
 #[derive(Debug, Clone)]
 pub struct Leader(NodeId);
 impl Leader {
-    pub fn new(v:u32)-> Self {
+    pub fn new(v: u32) -> Self {
         Self(NodeId(v))
     }
 }
@@ -68,13 +72,13 @@ impl Deref for Leader {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.0
+        &self.0 .0
     }
 }
 #[derive(Debug, Clone)]
 pub struct LeaderEpoch(u32);
 impl LeaderEpoch {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
@@ -85,11 +89,40 @@ impl Deref for LeaderEpoch {
         &self.0
     }
 }
+#[derive(Debug, Clone)]
+pub struct PartitionEpoch(u32);
+impl PartitionEpoch {
+    pub fn new(v: u32) -> Self {
+        Self(v)
+    }
+}
+impl Deref for PartitionEpoch {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[derive(Debug, Clone)]
+pub struct Directory(Uuid);
+impl Directory {
+    pub fn new(v: Uuid) -> Self {
+        Self(v)
+    }
+}
+impl Deref for Directory {
+    type Target = Uuid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct ReplicaNode(NodeId);
 impl ReplicaNode {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(NodeId(v))
     }
 }
@@ -97,13 +130,13 @@ impl Deref for ReplicaNode {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.0
+        &self.0 .0
     }
 }
 #[derive(Debug, Clone)]
 pub struct ISRNode(NodeId);
-impl ISRNode{
-    pub fn new(v:u32) -> Self {
+impl ISRNode {
+    pub fn new(v: u32) -> Self {
         Self(NodeId(v))
     }
 }
@@ -111,7 +144,12 @@ impl Deref for ISRNode {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.0
+        &self.0 .0
+    }
+}
+impl ToArray for Vec<ISRNode>{
+    fn to_pb_array(&self) -> Result<Vec<u8>> {
+       todo!()
     }
 }
 #[derive(Debug, Clone)]
@@ -120,7 +158,7 @@ impl Deref for EligibleLeaderReplicas {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.0
+        &self.0 .0
     }
 }
 #[derive(Debug, Clone)]
@@ -129,7 +167,7 @@ impl Deref for LastKnownELR {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.0
+        &self.0 .0
     }
 }
 #[derive(Debug, Clone)]
@@ -138,7 +176,7 @@ impl Deref for OfflineReplica {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.0
+        &self.0 .0
     }
 }
 #[derive(Debug, Clone)]
@@ -146,22 +184,29 @@ pub struct NodeId(u32);
 #[derive(Debug, Clone)]
 pub struct RemovingReplica(NodeId);
 impl RemovingReplica {
-    pub fn new(v:u32)->Self {
-     Self(NodeId(v))
+    pub fn new(v: u32) -> Self {
+        Self(NodeId(v))
     }
 }
-impl Deref for RemovingReplica{
+impl Deref for RemovingReplica {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-        &self.0.0
+        &self.0 .0
     }
 }
 #[derive(Debug, Clone)]
 pub struct AddingReplica(NodeId);
 impl AddingReplica {
-    pub fn new(v:u32)->Self {
+    pub fn new(v: u32) -> Self {
         Self(NodeId(v))
+    }
+}
+impl Deref for AddingReplica {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0 .0
     }
 }
 impl From<Partition> for Vec<u8> {
@@ -171,16 +216,35 @@ impl From<Partition> for Vec<u8> {
         bytes.put_u32(*partition.partition_index);
         bytes.put_u32(*partition.leader_id);
         bytes.put_u32(*partition.leader_epoch);
-        bytes.extend(VarInt::encode((partition.replica_nodes.len() + 1) as u64));
-        partition.replica_nodes.iter().for_each(|v| bytes.put_u32(*(v.clone())));
-        bytes.extend(VarInt::encode((partition.isr_nodes.len() +1) as u64));
+        bytes
+            .extend(VarInt::encode((partition.replica_nodes.len() + 1) as u64));
+        partition
+            .replica_nodes
+            .iter()
+            .for_each(|v| bytes.put_u32(*(v.clone())));
+        bytes.extend(VarInt::encode((partition.isr_nodes.len() + 1) as u64));
         partition.isr_nodes.iter().for_each(|v| bytes.put_u32(*(v.clone())));
-        bytes.extend(VarInt::encode((partition.eligible_leader_replicas.len() +1)as u64));
-        partition.eligible_leader_replicas.iter().for_each(|v| bytes.put_u32(*(v.clone())));
-        bytes.extend(VarInt::encode((partition.last_known_elrs.len()+1) as u64));
-        partition.last_known_elrs.iter().for_each(|v| bytes.put_u32(*(v.clone())));
-        bytes.extend(VarInt::encode((partition.offline_replicas.len()+1) as u64));
-        partition.offline_replicas.iter().for_each(|v| bytes.put_u32(*(v.clone())));
+        bytes.extend(VarInt::encode(
+            (partition.eligible_leader_replicas.len() + 1) as u64,
+        ));
+        partition
+            .eligible_leader_replicas
+            .iter()
+            .for_each(|v| bytes.put_u32(*(v.clone())));
+        bytes.extend(VarInt::encode(
+            (partition.last_known_elrs.len() + 1) as u64,
+        ));
+        partition
+            .last_known_elrs
+            .iter()
+            .for_each(|v| bytes.put_u32(*(v.clone())));
+        bytes.extend(VarInt::encode(
+            (partition.offline_replicas.len() + 1) as u64,
+        ));
+        partition
+            .offline_replicas
+            .iter()
+            .for_each(|v| bytes.put_u32(*(v.clone())));
         bytes.put_u8(*TagBuffer::zero());
         bytes
     }
@@ -190,7 +254,7 @@ impl From<Partition> for Vec<u8> {
 pub struct CurrentLeaderEpoch(u32);
 
 impl CurrentLeaderEpoch {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         CurrentLeaderEpoch(v)
     }
 }
@@ -207,7 +271,7 @@ impl Deref for CurrentLeaderEpoch {
 pub struct FetchOffset(u64);
 
 impl FetchOffset {
-    pub fn new(v:u64) -> Self {
+    pub fn new(v: u64) -> Self {
         Self(v)
     }
 }
@@ -223,8 +287,8 @@ impl Deref for FetchOffset {
 pub struct LastFetchEpoch(u32);
 
 impl LastFetchEpoch {
-    pub fn new(v:u32) -> Self {
-       Self(v)
+    pub fn new(v: u32) -> Self {
+        Self(v)
     }
 }
 
@@ -239,7 +303,7 @@ impl Deref for LastFetchEpoch {
 pub struct LogStartOffset(u64);
 
 impl LogStartOffset {
-    pub fn new(v:u64) -> Self {
+    pub fn new(v: u64) -> Self {
         Self(v)
     }
 }
@@ -255,7 +319,7 @@ impl Deref for LogStartOffset {
 pub struct PartitionMaxBytes(u32);
 
 impl PartitionMaxBytes {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
@@ -271,7 +335,7 @@ impl Deref for PartitionMaxBytes {
 pub struct RackId(String);
 
 impl RackId {
-    pub fn new(v:String) -> Self {
+    pub fn new(v: String) -> Self {
         Self(v)
     }
 }

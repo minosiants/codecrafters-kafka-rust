@@ -1,9 +1,7 @@
+use crate::{Context, Error, Result};
+use bytes::BufMut;
 use std::convert::TryFrom;
 use std::ops::Deref;
-use bytes::BufMut;
-use crate::{Context, Error, Result};
-
-
 
 #[derive(Debug, Copy, Clone)]
 pub enum Version {
@@ -47,7 +45,7 @@ impl TryFrom<u16> for Version {
             14 => Ok(V14),
             15 => Ok(V15),
             16 => Ok(V16),
-            _ => Err(Error::UnsupportedApiVersion(value, None))
+            _ => Err(Error::UnsupportedApiVersion(value, None)),
         }
     }
 }
@@ -82,7 +80,7 @@ impl Deref for Version {
 pub enum ApiKey {
     ApiVersions,
     DescribeTopicPartitions,
-    Fetch
+    Fetch,
 }
 
 impl TryFrom<u16> for ApiKey {
@@ -92,7 +90,7 @@ impl TryFrom<u16> for ApiKey {
             18 => Ok(ApiKey::ApiVersions),
             75 => Ok(ApiKey::DescribeTopicPartitions),
             1 => Ok(ApiKey::Fetch),
-            _ => Err(Error::UnsupportedApiKey(value, None))
+            _ => Err(Error::UnsupportedApiKey(value, None)),
         }
     }
 }
@@ -100,8 +98,8 @@ impl Deref for ApiKey {
     type Target = u16;
 
     fn deref(&self) -> &Self::Target {
-        match &self   {
-            ApiKey::ApiVersions =>  &18u16,
+        match &self {
+            ApiKey::ApiVersions => &18u16,
             ApiKey::DescribeTopicPartitions => &75u16,
             ApiKey::Fetch => &1u16,
         }
@@ -111,20 +109,20 @@ impl Deref for ApiKey {
 pub struct MessageSize(u32);
 
 impl MessageSize {
-    pub fn new(value:u32) -> Self {
+    pub fn new(value: u32) -> Self {
         MessageSize(value)
     }
-    pub fn try_from_bytes(value:[u8;4]) -> Result<Self> {
+    pub fn try_from_bytes(value: [u8; 4]) -> Result<Self> {
         Ok(Self(u32::from_be_bytes(value)))
     }
 }
-impl AsRef<u32> for MessageSize{
+impl AsRef<u32> for MessageSize {
     fn as_ref(&self) -> &u32 {
         &self.0
     }
 }
 
-impl Deref for MessageSize{
+impl Deref for MessageSize {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
@@ -140,16 +138,14 @@ impl From<u32> for MessageSize {
 #[derive(Debug, Copy, Clone)]
 pub struct Api(ApiKey, Version, Version, TagBuffer);
 
-
-
 impl Api {
-    pub fn new(api_key:ApiKey, min: Version, max: Version, tf: TagBuffer) -> Self {
-        Self(
-            api_key,
-            min,
-            max,
-            tf,
-        )
+    pub fn new(
+        api_key: ApiKey,
+        min: Version,
+        max: Version,
+        tf: TagBuffer,
+    ) -> Self {
+        Self(api_key, min, max, tf)
     }
     pub fn api_key(&self) -> ApiKey {
         self.0
@@ -178,7 +174,7 @@ impl From<Api> for Vec<u8> {
 pub struct TagBuffer(u8);
 
 impl TagBuffer {
-    pub fn new(value:u8) -> Self{
+    pub fn new(value: u8) -> Self {
         Self(value)
     }
     pub fn zero() -> TagBuffer {
@@ -197,7 +193,7 @@ pub enum ErrorCode {
     UnsupportedVersion,
     NoError,
     UnknownTopicOrPartition,
-    UnknownTopic
+    UnknownTopic,
 }
 impl Deref for ErrorCode {
     type Target = i16;
@@ -207,7 +203,7 @@ impl Deref for ErrorCode {
             ErrorCode::UnsupportedVersion => &35i16,
             ErrorCode::NoError => &0i16,
             ErrorCode::UnknownTopicOrPartition => &3i16,
-            ErrorCode::UnknownTopic => &100i16
+            ErrorCode::UnknownTopic => &100i16,
         }
     }
 }
@@ -223,17 +219,17 @@ impl Deref for CorrelationId {
     type Target = u32;
 
     fn deref(&self) -> &Self::Target {
-       &self.0
+        &self.0
     }
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ThrottleTime(u32);
 
 impl ThrottleTime {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
-    pub fn zero() -> Self{
+    pub fn zero() -> Self {
         Self(0)
     }
 }
@@ -245,16 +241,16 @@ impl Deref for ThrottleTime {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct ClientId(String);
 
 impl ClientId {
-    pub fn new(str:&str) -> Self {
+    pub fn new(str: &str) -> Self {
         Self(str.to_string())
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Length(i16);
 
 impl Deref for Length {
@@ -271,14 +267,14 @@ impl From<Length> for usize {
     }
 }
 impl Length {
-    pub fn new(v:i16) -> Self {
+    pub fn new(v: i16) -> Self {
         Self(v)
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct SessionId(u32);
 impl SessionId {
-    pub fn new(v:u32) ->Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
@@ -290,10 +286,10 @@ impl Deref for SessionId {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct MaxWait(u32);
 impl MaxWait {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
@@ -305,10 +301,10 @@ impl Deref for MaxWait {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct MinBytes(u32);
 impl MinBytes {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
@@ -319,10 +315,10 @@ impl Deref for MinBytes {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct MaxBytes(u32);
 impl MaxBytes {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
@@ -333,24 +329,24 @@ impl Deref for MaxBytes {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct IsolationLevel(u8);
 impl IsolationLevel {
-    pub fn new(v:u8) -> Self {
+    pub fn new(v: u8) -> Self {
         Self(v)
     }
 }
-impl Deref for IsolationLevel{
+impl Deref for IsolationLevel {
     type Target = u8;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct SessionEpoch(u32);
 impl SessionEpoch {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
@@ -362,14 +358,13 @@ impl Deref for SessionEpoch {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct HighWatermark(u64);
 
 impl HighWatermark {
-    pub fn new(v:u64) -> Self {
+    pub fn new(v: u64) -> Self {
         Self(v)
     }
-
 }
 
 impl Deref for HighWatermark {
@@ -379,11 +374,11 @@ impl Deref for HighWatermark {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct LastStableOffset(u64);
 
 impl LastStableOffset {
-    pub fn new (v:u64) -> Self {
+    pub fn new(v: u64) -> Self {
         Self(v)
     }
 }
@@ -395,11 +390,11 @@ impl Deref for LastStableOffset {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 
 pub struct ProducerId(u64);
 impl ProducerId {
-    pub fn new(v:u64) -> Self {
+    pub fn new(v: u64) -> Self {
         Self(v)
     }
 }
@@ -411,10 +406,10 @@ impl Deref for ProducerId {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct FirstOffset(u64);
 impl FirstOffset {
-    pub fn new(v:u64) -> Self {
+    pub fn new(v: u64) -> Self {
         Self(v)
     }
 }
@@ -426,12 +421,12 @@ impl Deref for FirstOffset {
         &self.0
     }
 }
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 
 pub struct PreferredReadReplica(u32);
 
 impl PreferredReadReplica {
-    pub fn new(v:u32) -> Self {
+    pub fn new(v: u32) -> Self {
         Self(v)
     }
 }
