@@ -19,26 +19,20 @@ fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
 fn process_stream(stream: &mut TcpStream) -> Result<Vec<u8>> {
     println!("accepted new connection");
     let req: Result<Request> = stream.try_into();
-    println!("req {:?}", req);
     let res: Vec<u8> = req
         .and_then(|r| Response::response(&r))
         .map(|v| v.into())
         .unwrap_or_else(|e| match e {
             Error::UnsupportedApiVersion(_, Some(id)) => {
-                println!("unsupoeted api version: ");
                 error_response(&id)
             }
             Error::UnsupportedApiKey(_, Some(id)) => {
-                println!("unsuported api key");
                 error_response(&id)
             }
             Error::ErrorWrapper(txt, err) => {
-                println!("txt: {}", txt);
-                println!("err: {:?}", err);
                 Vec::new()
             }
             e => {
-                println!("err {}", e);
                 Vec::new()
             }
         });

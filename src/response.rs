@@ -91,7 +91,6 @@ impl Response {
             } => match request.header.api_version() {
                 Version::V0 => {
                     let meta = Meta::load("/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log")?;
-                    println!("meta: {:?}", meta);
                     Ok(ResponseBody::DescribeTopicPartitions {
                         throttle_time: ThrottleTime::zero(),
                         topics: topics
@@ -143,15 +142,12 @@ impl Response {
                                         PartitionIndex::new(0),
                                     ),
                                     Some(log) => {
-                                        println!("LOG: {:?}", log);
-
                                         FetchPartitionResponse::new(
                                             PartitionIndex::new(0),
                                             log.batches().clone(),
                                         )
                                     }
                                 };
-                                println!(">>> fpr {:?}", fpr);
                                 FetchResponse::new(t.topic_id(), vec![fpr])
                             })
                             .collect(),
@@ -163,7 +159,6 @@ impl Response {
                 )),
             },
         };
-        println!("response: {:?}", body);
         body.map(|b| Response::new(request.header.correlation_id(), b))
     }
 }
