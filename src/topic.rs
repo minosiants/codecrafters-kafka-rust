@@ -92,7 +92,6 @@ impl TopicId {
         Self(id)
     }
     pub fn mk(v: &[u8]) -> Result<Self> {
-
         Uuid::from_slice(v).context("uuid").map(Self::new)
     }
     pub fn zero() -> Self {

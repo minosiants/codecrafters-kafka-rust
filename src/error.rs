@@ -23,9 +23,9 @@ pub enum Error {
     #[error("Failed to convert bytes to string: {0}")]
     Utf8ConversionError(#[from] Utf8Error),
     #[error("Failed to create uuid: {0}")]
-    UuidError(#[from]  uuid::Error),
+    UuidError(#[from] uuid::Error),
     #[error("Failed to convert to int: {0}")]
-    TryFromInt(#[from]  TryFromIntError),
+    TryFromInt(#[from] TryFromIntError),
     #[error("Unknown Batch Record Type {0}")]
     UnknownRecordType(u8),
     #[error("General Error {0}")]

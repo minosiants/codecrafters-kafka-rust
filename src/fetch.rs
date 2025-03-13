@@ -1,17 +1,16 @@
 use crate::{
-    Batch, BytesOps, CurrentLeaderEpoch, Error, ErrorCode, FetchOffset,
+    Batch, BatchOffset, BytesOps, CurrentLeaderEpoch, ErrorCode, FetchOffset,
     FirstOffset, HighWatermark, LastFetchEpoch, LastStableOffset,
     LogStartOffset, MapTupleTwo, PartitionIndex, PartitionMaxBytes,
-    PreferredReadReplica, ProducerId, RackId, RecordValue, Result, TagBuffer,
-    TopicId, TryExtract, VarInt,
+    PreferredReadReplica, ProducerId, Result, TagBuffer, TopicId, TryExtract,
+    VarInt,
 };
 use bytes::BufMut;
-use pretty_hex::simple_hex;
 
 #[derive(Debug, Clone)]
 pub struct FetchTopic {
     topic_id: TopicId,
-    partitions: Vec<FetchPartition>
+    partitions: Vec<FetchPartition>,
 }
 
 impl FetchTopic {
@@ -21,16 +20,12 @@ impl FetchTopic {
 }
 impl TryExtract for FetchTopic {
     fn try_extract(value: &[u8]) -> Result<(Self, &[u8])> {
-        let (topic_id1, rest) = value.drop(16)?;
-        println!("topic_id1 {:?}", topic_id1);
-        let topic_id = TopicId::mk(topic_id1)?;
-        println!("topic_id {:?}", topic_id);
+        let (topic_id, rest) = value.drop(16).fmap_tuple(TopicId::mk)?;
         let (partitions, rest) = rest.extract_array_into()?;
-        println!("partitions {:?}", partitions);
         Ok((
             Self {
                 topic_id,
-                partitions
+                partitions,
             },
             rest,
         ))
@@ -84,10 +79,8 @@ impl ForgottenTopicData {
 
 impl TryExtract for ForgottenTopicData {
     fn try_extract(value: &[u8]) -> Result<(Self, &[u8])> {
-        println!("value {:?}", value);
         let (topic_id, rest) = value.drop(16).fmap_tuple(TopicId::mk)?;
-        println!("topic_id {:?}", topic_id);
-        println!("rest {:?}", rest);
+
         let (partitions, rest) = rest.extract_array_into()?;
         Ok((Self(topic_id, partitions), rest))
     }
@@ -122,6 +115,8 @@ impl From<FetchResponse> for Vec<u8> {
             .collect();
         bytes.put_slice(&partitions);
         bytes.put_u8(*TagBuffer::zero());
+        bytes.put_u8(*TagBuffer::zero());
+
         bytes
     }
 }
@@ -146,28 +141,28 @@ impl From<FetchPartitionResponse> for Vec<u8> {
         bytes.put_u64(*value.high_watermark);
         bytes.put_u64(*value.last_stable_offset);
         bytes.put_u64(*value.log_start_offset);
-        bytes.extend(&VarInt::encode((value.aborted_transactions.len() + 1 ) as u64, ));
+        bytes.extend(&VarInt::encode(
+            (value.aborted_transactions.len() + 1) as u64,
+        ));
         let aborted: Vec<u8> = value
             .aborted_transactions
             .into_iter()
             .flat_map::<Vec<u8>, _>(|e| e.into())
             .collect();
         bytes.extend(&aborted);
-    //    bytes.put_u8(*TagBuffer::zero());
         bytes.put_u32(*value.preferred_read_replica);
-        bytes.extend(VarInt::encode((value.batches.len() + 1) as u64));
         let batches: Vec<u8> = value
             .batches
             .into_iter()
-            .flat_map::<Vec<u8>, _>(|e| e.into())
+            .enumerate()
+            .map::<Vec<u8>, _>(|(i, b)| {
+                b.set_offset(BatchOffset::new(i as u64)).into()
+            })
+            .flatten()
             .collect();
-        let is_empty = batches.is_empty();
+        bytes.extend(VarInt::encode(batches.len() as u64));
         bytes.extend(batches);
-        //bytes.put_u32(0);
         bytes.put_u8(*TagBuffer::zero());
-        if is_empty {
-            bytes.put_u8(*TagBuffer::zero());
-        }
         bytes
     }
 }

@@ -1,4 +1,6 @@
-use crate::{BytesOps, Error, ErrorCode, Result, TagBuffer, ToArray, TopicId, TryExtract, VarInt};
+use crate::{
+    BytesOps, ErrorCode, Result, TagBuffer, ToArray, TryExtract, VarInt,
+};
 use bytes::BufMut;
 use std::ops::Deref;
 use uuid::Uuid;
@@ -118,7 +120,6 @@ impl Deref for Directory {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ReplicaNode(NodeId);
 impl ReplicaNode {
@@ -147,9 +148,9 @@ impl Deref for ISRNode {
         &self.0 .0
     }
 }
-impl ToArray for Vec<ISRNode>{
+impl ToArray for Vec<ISRNode> {
     fn to_pb_array(&self) -> Result<Vec<u8>> {
-       todo!()
+        todo!()
     }
 }
 #[derive(Debug, Clone)]

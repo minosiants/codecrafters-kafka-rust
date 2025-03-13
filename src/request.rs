@@ -2,10 +2,15 @@ use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::net::TcpStream;
 
-use pretty_hex::{PrettyHex, simple_hex};
+use pretty_hex::{simple_hex, PrettyHex};
 
-use crate::{ApiKey, BytesOps, ClientId, Context, CorrelationId, Cursor, FetchTopic, ForgottenTopicData, IsolationLevel, MapTupleTwo, MaxBytes, MaxWait, MessageSize, MinBytes, RackId, Result, SessionEpoch, SessionId, TopicName, TryExtract, Version};
 use crate::error::Error;
+use crate::{
+    ApiKey, BytesOps, ClientId, Context, CorrelationId, Cursor, FetchTopic,
+    ForgottenTopicData, IsolationLevel, MapTupleTwo, MaxBytes, MaxWait,
+    MessageSize, MinBytes, RackId, Result, SessionEpoch, SessionId, TopicName,
+    Version,
+};
 
 #[derive(Debug, Clone)]
 pub struct RequestHeader {
@@ -54,8 +59,8 @@ pub enum RequestBody {
         session_id: SessionId,
         session_epoch: SessionEpoch,
         topics: Vec<FetchTopic>,
-        forgotten_topics_data:Vec<ForgottenTopicData>,
-        rack_id: RackId
+        forgotten_topics_data: Vec<ForgottenTopicData>,
+        rack_id: RackId,
     },
 }
 impl RequestBody {
@@ -116,7 +121,7 @@ impl RequestBody {
         println!("topics {:?}", rest.hex_dump());
         let (topics, rest) = rest.extract_array_into()?;
         let (forgotten_topics_data, rest) =
-            rest.drop(1).second().and_then(|v|v.extract_array_into())?;
+            rest.drop(1).second().and_then(|v| v.extract_array_into())?;
         println!("forgotten_topics_data {:?}", forgotten_topics_data);
         println!("rack_id hex {:?}", simple_hex(&rest));
         let (rack_id, _rest) =
@@ -131,7 +136,7 @@ impl RequestBody {
             session_epoch,
             topics,
             forgotten_topics_data,
-            rack_id
+            rack_id,
         })
     }
 }

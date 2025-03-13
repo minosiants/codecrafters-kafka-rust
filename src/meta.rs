@@ -1,14 +1,15 @@
-use std::cmp::{max, PartialEq};
 use std::ops::Deref;
-use std::str::from_utf8;
 
-use bytes::{Buf, BufMut};
+use bytes::BufMut;
 use pretty_hex::*;
-use uuid::fmt::Braced;
 use uuid::Uuid;
 
-use crate::RecordValue::PartitionRecord;
-use crate::{read, AddingReplica, ToArray, BytesOps, Context, Error, ISRNode, Leader, LeaderEpoch, MapTupleTwo, PartitionIndex, RemovingReplica, ReplicaNode, Result, SignedVarInt, ToCompactString, TopicId, TopicName, VarInt, PartitionEpoch, Directory, TagBuffer};
+use crate::{
+    read, AddingReplica, BytesOps, Directory, ISRNode, Leader, LeaderEpoch,
+    MapTupleTwo, PartitionEpoch, PartitionIndex, RemovingReplica, ReplicaNode,
+    Result, SignedVarInt, TagBuffer, ToArray, ToCompactString, TopicId,
+    TopicName,
+};
 
 // https://binspec.org/kafka-cluster-metadata
 //
@@ -17,22 +18,29 @@ pub struct Meta(Vec<Batch>);
 #[derive(Debug, Clone)]
 pub struct Log(Vec<Batch>);
 impl Log {
-    pub fn new(v:Vec<Batch>) -> Self{
+    pub fn new(v: Vec<Batch>) -> Self {
         Self(v)
-
     }
     pub fn batches(&self) -> &Vec<Batch> {
         &self.0
     }
     pub fn load_log(topic_name: &TopicName) -> Result<Log> {
         //let partition_metadata = format!("/tmp/kraft-combined-logs/{}-0/partition.metadata", **topic_name);
-        let log = format!("/tmp/kraft-combined-logs/{}-0/00000000000000000000.log", **topic_name);
-        println!(">>>>>>>>>>>>> log file{:?}",log);
+        let log = format!(
+            "/tmp/kraft-combined-logs/{}-0/00000000000000000000.log",
+            **topic_name
+        );
+
         //let l1 = read(&partition_metadata)?;
         //println!("partition metadata {:?}", pretty_hex(&l1));
-        read(&log).map(|v|{
-        println!("LOG: {:?}", pretty_hex(&v));
-        v}).and_then(Batch::split_by_batch).map(Log::new)
+        read(&log)
+            .map(|v| {
+                println!("LOG: {:?}", pretty_hex(&v));
+                println!("LOG simple: {:?}", simple_hex(&v));
+                v
+            })
+            .and_then(Batch::split_by_batch)
+            .map(Log::new)
     }
 }
 impl Meta {
@@ -40,41 +48,35 @@ impl Meta {
         Self(v)
     }
     pub fn load(path: &str) -> Result<Self> {
-
         read(path).and_then(Batch::split_by_batch).map(Self::new)
     }
 
     pub fn find_log(&self, topic_id: &TopicId) -> Result<Option<Log>> {
         match self.find_topic_name(topic_id) {
             None => Ok(None),
-            Some(topic_name) =>
-                Log::load_log(&topic_name).map(Option::from)
-
-
+            Some(topic_name) => Log::load_log(&topic_name).map(Option::from),
         }
     }
     pub fn find_batch(&self, topic_id: TopicId) -> Option<Batch> {
-        self.0.iter().find(|&v| {
-            v.records
-                .iter()
-                .find(|&r| {
-                    r.topic_id() == Some(topic_id.clone())
-                })
-                .is_some()
-        }).map(|v| v.clone())
+        self.0
+            .iter()
+            .find(|&v| {
+                v.records
+                    .iter()
+                    .find(|&r| r.topic_id() == Some(topic_id.clone()))
+                    .is_some()
+            })
+            .map(|v| v.clone())
     }
-
 
     pub fn find_topic_name(&self, topic_id: &TopicId) -> Option<TopicName> {
         self.0
             .iter()
             .flat_map(|b| b.records.iter()) // Flatten inner structure
             .find_map(|r| match &r.value {
-                RecordValue::TopicRecord(_, _, name, id)
-                if id == topic_id =>
-                    {
-                        Some(name.clone())
-                    } // Return owned `TopicId`
+                RecordValue::TopicRecord(_, _, name, id) if id == topic_id => {
+                    Some(name.clone())
+                } // Return owned `TopicId`
                 _ => None,
             })
     }
@@ -85,7 +87,8 @@ impl Meta {
             .filter(|r| {
                 r.is_partition_record()
                     && r.topic_id().filter(|id| *topic_id == *id).is_some()
-            }).map(|v| &v.value)
+            })
+            .map(|v| &v.value)
             .collect()
     }
     pub fn find_topic_id(&self, topic_name: &TopicName) -> Option<TopicId> {
@@ -94,10 +97,10 @@ impl Meta {
             .flat_map(|b| b.records.iter()) // Flatten inner structure
             .find_map(|r| match &r.value {
                 RecordValue::TopicRecord(_, _, name, id)
-                if name == topic_name =>
-                    {
-                        Some(id.clone())
-                    } // Return owned `TopicId`
+                    if name == topic_name =>
+                {
+                    Some(id.clone())
+                } // Return owned `TopicId`
                 _ => None,
             })
     }
@@ -106,7 +109,7 @@ impl Meta {
     }
 }
 #[derive(Debug, Clone)]
-struct BatchOffset(u64);
+pub struct BatchOffset(u64);
 impl BatchOffset {
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -293,6 +296,7 @@ pub struct Batch {
     base_sequence: Option<BaseSequence>,
     records: Vec<Record>,
 }
+const CRC_32_C: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
 
 impl Batch {
     fn split_by_batch(v: Vec<u8>) -> Result<Vec<Batch>> {
@@ -300,25 +304,37 @@ impl Batch {
             if v.is_empty() {
                 Ok(result)
             } else {
-                let (batch_offset, rest) = v.extract_u64_into(BatchOffset::new)?;
-                let (batch_length, rest) = rest.extract_u32_into(BatchLength::new)?;
-                let (batch, rest) = rest.drop(batch_length.deref().clone() as usize)?;
-                println!("batch: {:?}", simple_hex(&batch));
+                let (batch_offset, rest) =
+                    v.extract_u64_into(BatchOffset::new)?;
+                let (batch_length, rest) =
+                    rest.extract_u32_into(BatchLength::new)?;
+                let (batch, rest) =
+                    rest.drop(batch_length.deref().clone() as usize)?;
                 result.push(Batch::mk(batch_offset, batch_length, batch)?);
                 do_split(rest, result)
             }
         }
         do_split(&v, vec![])
     }
-    pub fn filter_records(&self, mut f:impl FnMut(&Record) -> bool) -> Batch  {
+    pub fn filter_records(&self, mut f: impl FnMut(&Record) -> bool) -> Batch {
         let rec = self.records.clone().into_iter().filter(|v| f(v)).collect();
-        Batch{
-            records:rec,
-            crc:None,
-                .. (*self).clone()
+        Batch {
+            records: rec,
+            crc: None,
+            ..(*self).clone()
         }
     }
-    fn mk(batch_offset: BatchOffset, batch_length: BatchLength, v: &[u8]) -> Result<Self> {
+    pub fn set_offset(&self, v: BatchOffset) -> Self {
+        Self {
+            batch_offset: v,
+            ..self.clone()
+        }
+    }
+    fn mk(
+        batch_offset: BatchOffset,
+        batch_length: BatchLength,
+        v: &[u8],
+    ) -> Result<Self> {
         let (partition_leader_epic, rest) =
             v.extract_u32_into(PartitionLeaderEpic::new)?;
         let (magic_byte, rest) = rest.extract_u8_into(MagicByte::new)?;
@@ -337,15 +353,14 @@ impl Batch {
             rest.extract_u32_as_option_into(BaseSequence::new)?;
         let (_record_length, rest) = rest.extract_u32()?;
         fn split_records(
-            mut v: &[u8],
+            v: &[u8],
             mut result: Vec<Record>,
         ) -> Result<Vec<Record>> {
-            println!("record: {:?}", simple_hex(&v));
             if v.is_empty() {
                 Ok(result)
             } else {
                 let (length, rest) = SignedVarInt::decode(&v)?;
-                println!("!!!! record len in {:?}", length.value());
+                println!("record len: {:?}", length.value());
                 let (record, rest) = rest.drop(length.value() as usize)?;
                 let record = Record::mk(record)?;
                 result.push(record);
@@ -358,7 +373,7 @@ impl Batch {
             batch_length,
             partition_leader_epic,
             magic_byte,
-            crc:Some(crc),
+            crc: Some(crc),
             attributes,
             last_offset_delta,
             base_timestamp,
@@ -396,31 +411,30 @@ impl From<Batch> for Vec<u8> {
         });
 
         bytes.put_u32(value.records.len() as u32);
-        let records: Vec<u8> = value
+        let mut records: Vec<u8> = value
             .records
             .into_iter()
             .flat_map::<Vec<u8>, _>(|e| {
                 let b: Vec<u8> = e.into();
-                println!("record len out: {:?}",&b);
                 let mut len = SignedVarInt::encode(b.len() as i64);
                 len.extend(&b); //
                 len
-
             })
             .collect();
-        bytes.extend(records);
-        const CRC_32_C: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISCSI);
+        bytes.append(&mut records);
 
-        let mut batch_with_crc = CRC_32_C.checksum(&bytes).to_be_bytes().to_vec();
+        let mut batch_with_crc =
+            CRC_32_C.checksum(&bytes).to_be_bytes().to_vec();
         batch_with_crc.append(&mut bytes);
 
         bytes.put_u32(*value.partition_leader_epic);
+        //bytes.put_u32(*value.partition_leader_epic);
         bytes.put_u8(*value.magic_byte);
         bytes.append(&mut batch_with_crc);
 
         //end crc
-        let mut result = 0u64.to_be_bytes().to_vec();
-        result.extend((bytes.len() as u32).to_be_bytes());
+        let mut result = value.batch_offset.deref().to_be_bytes().to_vec();
+        result.put_u32(bytes.len() as u32);
         result.extend(bytes);
 
         result
@@ -479,8 +493,8 @@ impl From<Record> for Vec<u8> {
                 bytes.extend(v);
             }
         }
-        let mut v: Vec<u8> = value.value.into();
-        bytes.extend(SignedVarInt::encode((v.len() -1 )as i64));
+        let v: Vec<u8> = value.value.into();
+        bytes.extend(SignedVarInt::encode(v.len() as i64));
         bytes.extend(v);
         bytes.extend(SignedVarInt::encode(value.headers.len() as i64));
         bytes
@@ -542,7 +556,8 @@ impl RecordKey {
         if key_length.value() < 0 {
             Ok((None, rest))
         } else {
-            v.drop(key_length.value() as usize).map_tuple(|v| Some(Self::new(v)))
+            v.drop(key_length.value() as usize)
+                .map_tuple(|v| Some(Self::new(v)))
         }
     }
 }
@@ -572,14 +587,27 @@ pub enum RecordValue {
         Vec<RemovingReplica>,
         Vec<Directory>,
     ),
-    RawValue(Vec<u8>)
+    RawValue(Vec<u8>),
 }
 impl RecordValue {
     fn record_type(&self) -> u8 {
         match self {
             RecordValue::FeatureLevelRecord(_) => 0x0c,
             RecordValue::TopicRecord(_, _, _, _) => 0x02,
-            RecordValue::PartitionRecord(_, _, _, _, _, _, _, _, _, _, _, _) => 0x03,
+            RecordValue::PartitionRecord(
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) => 0x03,
             RecordValue::RawValue(_) => 0xff,
         }
     }
@@ -587,16 +615,19 @@ impl RecordValue {
 impl Record {
     fn mk(v: &[u8]) -> Result<Record> {
         let (attributes, rest) = v.extract_u8_into(RecordAttributes::new)?;
-        let (timestamp_delta, rest) = rest.extract_u8_into(TimestampDelta::new)?;
+        let (timestamp_delta, rest) =
+            rest.extract_u8_into(TimestampDelta::new)?;
         let (offset_delta, rest) = rest.extract_u8_into(OffsetDelta::new)?;
         let (key, rest) = RecordKey::mk(rest)?;
-        let (_record_length, rest) = rest.extract_signed_var_int()?;
+        let (record_length, rest) = rest.extract_signed_var_int()?;
         let record_type = rest[1];
         let record_value = match record_type {
             0x0c => Self::feature_level_record(&rest),
             0x02 => Self::topic_record(&rest),
             0x03 => Self::partition_record(&rest),
-            _ => Self::raw_value(&rest),
+            _ => Self::raw_value(
+                &rest.drop(record_length.value() as usize).first()?,
+            ),
         }?;
         Ok(Self {
             attributes,
@@ -607,11 +638,10 @@ impl Record {
             headers: vec![],
         })
     }
-    fn raw_value(v:&[u8])-> Result<RecordValue> {
+    fn raw_value(v: &[u8]) -> Result<RecordValue> {
         Ok(RecordValue::RawValue(v.to_vec()))
     }
     fn feature_level_record(v: &[u8]) -> Result<RecordValue> {
-        println!("feature level {:?}", &v);
         Ok(RecordValue::FeatureLevelRecord(v.to_vec()))
     }
     pub fn topic_record(v: &[u8]) -> Result<RecordValue> {
@@ -620,9 +650,7 @@ impl Record {
         let (version, rest) = rest.extract_u8_into(ValueVersion::new)?;
         let (topic_name, rest) =
             rest.extract_compact_str().map_tuple(TopicName::new)?;
-        println!(">>>>>>>>>>>>> topic record: {:?}", simple_hex(&(rest[0..16].to_vec())));
         let topic_id = rest.extract_uuid_into(TopicId::new).first()?;
-        println!(">>>>>>>>>>>>  topic record: {:?}", topic_id);
         Ok(RecordValue::TopicRecord(
             frame_version,
             version,
@@ -636,16 +664,15 @@ impl Record {
         let (version, rest) = rest.extract_u8_into(ValueVersion::new)?;
         let (partition_index, rest) =
             rest.extract_u32_into(PartitionIndex::new)?;
-        println!(">>>>>>>>>>>>> partition record: {:?}", simple_hex(&(rest[0..16].to_vec())));
         let (topic_id, rest) = rest.extract_uuid_into(TopicId::new)?;
-        println!(">>>>>>>>>>>>> partition record: {:?}", topic_id);
         let (replicas, rest) = rest.extract_array(ReplicaNode::new)?;
         let (isrs, rest) = rest.extract_array(ISRNode::new)?;
         let (removing, rest) = rest.extract_array(RemovingReplica::new)?;
         let (adding, rest) = rest.extract_array(AddingReplica::new)?;
         let (leader, rest) = rest.extract_u32_into(Leader::new)?;
         let (leader_epoch, rest) = rest.extract_u32_into(LeaderEpoch::new)?;
-        let (partition_epoch, rest) = rest.extract_u32_into(PartitionEpoch::new)?;
+        let (partition_epoch, rest) =
+            rest.extract_u32_into(PartitionEpoch::new)?;
         let (directories, rest) = rest.extract_array_into::<Uuid>()?;
         Ok(RecordValue::PartitionRecord(
             frame_version,
@@ -665,14 +692,27 @@ impl Record {
 
     pub fn is_partition_record(&self) -> bool {
         match self.value {
-            RecordValue::PartitionRecord(_, _, _, _, _, _, _, _, _, _, _, _) => true,
-            _ => false
+            RecordValue::PartitionRecord(
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) => true,
+            _ => false,
         }
     }
     pub fn is_topic_record(&self) -> bool {
         match self.value {
             RecordValue::TopicRecord(_, _, _, _) => true,
-            _ => false
+            _ => false,
         }
     }
     pub fn topic_id(&self) -> Option<TopicId> {
@@ -740,32 +780,65 @@ impl From<RecordValue> for Vec<u8> {
                 bytes.put_u8(*value_version);
                 bytes.put_u32(*partition_index);
                 bytes.extend((*topic_id).as_bytes());
-                println!(">>>>>>>>>>>>>>>>>>>>>> Partition Record {:?} before todo should be 23", bytes.len());
                 //todo refactor
-                bytes.extend(replica_nodes.into_iter().map(|v| *v).collect::<Vec<u32>>().to_pb_array().unwrap());
-                bytes.extend(isr_nodes.into_iter().map(|v| *v).collect::<Vec<u32>>().to_pb_array().unwrap());
-                bytes.extend(removing_replicas.into_iter().map(|v| *v).collect::<Vec<u32>>().to_pb_array().unwrap());
-                bytes.extend(adding_replicas.into_iter().map(|v| *v).collect::<Vec<u32>>().to_pb_array().unwrap());
-                println!(">>>>>>>>>>>>>>>>>>>>>> Partition Record {:?} after todo ", bytes.len());
+                bytes.extend(
+                    replica_nodes
+                        .into_iter()
+                        .map(|v| *v)
+                        .collect::<Vec<u32>>()
+                        .to_pb_array()
+                        .unwrap(),
+                );
+                bytes.extend(
+                    isr_nodes
+                        .into_iter()
+                        .map(|v| *v)
+                        .collect::<Vec<u32>>()
+                        .to_pb_array()
+                        .unwrap(),
+                );
+                bytes.extend(
+                    removing_replicas
+                        .into_iter()
+                        .map(|v| *v)
+                        .collect::<Vec<u32>>()
+                        .to_pb_array()
+                        .unwrap(),
+                );
+                bytes.extend(
+                    adding_replicas
+                        .into_iter()
+                        .map(|v| *v)
+                        .collect::<Vec<u32>>()
+                        .to_pb_array()
+                        .unwrap(),
+                );
+
                 bytes.put_u32(*leader);
                 bytes.put_u32(*leader_epoch);
                 bytes.put_u32(*partition_epoch);
-                println!(">>>>>>>>>>>>>>>>>>>>>> Partition Record {:?} before  dir ", bytes.len());
-                bytes.extend(directrories.into_iter().map(|v| *v).collect::<Vec<Uuid>>().to_pb_array().unwrap());
-                println!(">>>>>>>>>>>>>>>>>>>>>> Partition Record {:?} final", bytes.len());
+                bytes.extend(
+                    directrories
+                        .into_iter()
+                        .map(|v| *v)
+                        .collect::<Vec<Uuid>>()
+                        .to_pb_array()
+                        .unwrap(),
+                );
+
                 bytes.put_u8(*TagBuffer::zero());
                 bytes
             }
-            RecordValue::RawValue(v) =>v
+            RecordValue::RawValue(v) => v,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use hex::decode;
-
     use super::*;
+    use crate::{Context, VarInt};
+    use hex::decode;
 
     #[test]
     fn test_load() -> Result<()> {
@@ -780,6 +853,24 @@ mod tests {
         println!("topic_id {:?}", topic_id);
         Ok(())
     }
+    #[test]
+    fn test_batch() {
+        let bytes_str =  "00 00 00 00  00 00 00 00  00 00 00 44  00 00 00 00  02 ab fd 04  91 00 00 00  00 00 00 00  00 01 91 e0  5b 6d 8b 00  00 01 91 e0  5b 6d 8b 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  01 24 00 00  00 01 18 48  65 6c 6c 6f  20 4b 61 66  6b 61 21 00  00 00 00 00  00 00 00 01  00 00 00 52  00 00 00 00  02 8b aa 87  2a 00 00 00  00 00 00 00  00 01 91 e0  5b 6d 8b 00  00 01 91 e0  5b 6d 8b 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  01 40 00 00  00 01 34 48  65 6c 6c 6f  20 52 65 76  65 72 73 65  20 45 6e 67  69 6e 65 65  72 69 6e 67  21 00";
+        let byte_vec = decode(bytes_str.clone().replace(" ", "")).unwrap();
+        let batches = Batch::split_by_batch(byte_vec.clone()).unwrap();
+        let bytes2: Vec<u8> = batches
+            .clone()
+            .into_iter()
+            .flat_map(|v| {
+                let b: Vec<u8> = v.into();
+                b
+            })
+            .collect();
+        let batches2 = Batch::split_by_batch(bytes2.clone()).unwrap();
+        println!("{:?}", &batches);
+        println!("{:?}", &batches2);
+        assert_eq!(byte_vec.clone(), bytes2.clone());
+    }
 
     #[test]
     fn something() -> Result<()> {
@@ -787,12 +878,18 @@ mod tests {
 
         println!("v: {:?}", simple_hex(&topic_name.to_compact_string()));
 
-        let vv=SignedVarInt::encode(24i64);
+        let vv = SignedVarInt::encode(24i64);
         println!("vv {:?}", simple_hex(&vv));
 
-        let value:Vec<u8> = vec![72, 101, 108, 108, 111, 32, 67, 111, 100, 101, 67, 114, 97, 102, 116, 101, 114, 115, 33];
+        let value: Vec<u8> = vec![
+            72, 101, 108, 108, 111, 32, 67, 111, 100, 101, 67, 114, 97, 102,
+            116, 101, 114, 115, 33,
+        ];
 
         println!("rec: {:?}", pretty_hex(&value));
+
+        let l = VarInt::encode(128);
+        println!("l {:?}", l);
         Ok(())
     }
 }

@@ -1,4 +1,4 @@
-use crate::{Context, Error, FetchTopic, MapTupleTwo, ReplicaNode, Result, TopicName};
+use crate::{Context, Error, MapTupleTwo, Result, TopicName};
 use bytes::{Buf, BufMut};
 use pretty_hex::simple_hex;
 use std::ops::Deref;
@@ -29,10 +29,10 @@ impl SignedVarInt {
     fn zig_zag_decode(n: u64) -> i64 {
         ((n >> 1) as i64) ^ -((n & 1) as i64)
     }
-    fn zig_zag_encode(n:i64) -> u64 {
+    fn zig_zag_encode(n: i64) -> u64 {
         ((n << 1) ^ (n >> 63)) as u64
     }
-    pub fn encode(n:i64) -> Vec<u8> {
+    pub fn encode(n: i64) -> Vec<u8> {
         VarInt::encode(Self::zig_zag_encode(n))
     }
 }
@@ -172,8 +172,7 @@ pub trait BytesOps {
     fn extract_str(&self, size: usize) -> Result<(&str, &[u8])>;
 
     fn extract_uuid(&self) -> Result<(Uuid, &[u8])> {
-        self.drop(16).fmap_tuple(|v|Uuid::from_slice(v).context(""))
-
+        self.drop(16).fmap_tuple(|v| Uuid::from_slice(v).context(""))
     }
     fn extract_uuid_into<T>(
         &self,
@@ -241,7 +240,7 @@ impl BytesOps for [u8] {
     fn extract_compact_str(&self) -> Result<(String, &[u8])> {
         let (length, rest) = VarInt::decode(&self)?;
         if length.value == 0 {
-            Ok(("".to_string(),rest))
+            Ok(("".to_string(), rest))
         } else {
             let (str, rest) = rest.drop(length.value() - 1)?;
             Ok((from_utf8(str).map(|v| v.to_string())?, rest))
@@ -283,7 +282,7 @@ impl ToCompactString for TopicName {
 impl TryExtract for Uuid {
     fn try_extract(v: &[u8]) -> Result<(Self, &[u8])>
     where
-        Self: Sized
+        Self: Sized,
     {
         v.extract_uuid()
     }
@@ -293,19 +292,20 @@ pub trait ToArray {
     fn to_pb_array(&self) -> Result<Vec<u8>>;
 }
 
-
-impl ToArray for Vec<u32>{
+impl ToArray for Vec<u32> {
     fn to_pb_array(&self) -> Result<Vec<u8>> {
-        let mut res = VarInt::encode((self.len() +1)as u64);
-        let v:Vec<u8> = self.iter().flat_map(|v| v.to_be_bytes().into_iter()).collect();
+        let mut res = VarInt::encode((self.len() + 1) as u64);
+        let v: Vec<u8> =
+            self.iter().flat_map(|v| v.to_be_bytes().into_iter()).collect();
         res.extend(v);
         Ok(res)
     }
 }
-impl ToArray for Vec<Uuid>{
+impl ToArray for Vec<Uuid> {
     fn to_pb_array(&self) -> Result<Vec<u8>> {
-        let mut res = VarInt::encode((self.len() +1)as u64);
-        let v:Vec<u8> = self.iter().flat_map(|v| v.into_bytes().into_iter()).collect();
+        let mut res = VarInt::encode((self.len() + 1) as u64);
+        let v: Vec<u8> =
+            self.iter().flat_map(|v| v.into_bytes().into_iter()).collect();
         res.extend(v);
         Ok(res)
     }

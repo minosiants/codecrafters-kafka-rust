@@ -1,8 +1,12 @@
 use std::ops::Deref;
 
+use crate::{
+    Api, ApiKey, CorrelationId, Error, ErrorCode, FetchPartitionResponse,
+    FetchResponse, Meta, Partition, PartitionIndex, RecordValue, Request,
+    RequestBody, Result, SessionId, TagBuffer, ThrottleTime, Topic, VarInt,
+    Version,
+};
 use bytes::BufMut;
-use pretty_hex::simple_hex;
-use crate::{read, Api, ApiKey, CorrelationId, Error, ErrorCode, FetchPartitionResponse, FetchResponse, Meta, Partition, PartitionIndex, RecordValue, Request, RequestBody, Result, SessionId, TagBuffer, ThrottleTime, Topic, TopicId, VarInt, Version, Context, Batch};
 
 #[derive(Debug, Clone)]
 pub enum ResponseBody {
@@ -87,6 +91,7 @@ impl Response {
             } => match request.header.api_version() {
                 Version::V0 => {
                     let meta = Meta::load("/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log")?;
+                    println!("meta: {:?}", meta);
                     Ok(ResponseBody::DescribeTopicPartitions {
                         throttle_time: ThrottleTime::zero(),
                         topics: topics
@@ -118,12 +123,8 @@ impl Response {
                 )),
             },
             RequestBody::Fetch {
-                max_wait,
-                min_bytes,
-                max_bytes,
-                isolation_level,
                 session_id,
-                session_epoch,
+
                 topics,
                 ..
             } => match request.header.api_version() {
@@ -135,26 +136,27 @@ impl Response {
                         responses: topics
                             .iter()
                             .map(|t| {
-
-                                let topic_log = meta.find_log(&t.topic_id()).ok().flatten();
+                                let topic_log =
+                                    meta.find_log(&t.topic_id()).ok().flatten();
                                 let fpr = match topic_log {
                                     None => FetchPartitionResponse::unknown(
                                         PartitionIndex::new(0),
                                     ),
                                     Some(log) => {
-                                        let batches:Vec<Batch> = log.batches().first().map(move |v|v.clone()).into_iter().collect();
+                                        println!("LOG: {:?}", log);
+
                                         FetchPartitionResponse::new(
                                             PartitionIndex::new(0),
-                                            batches
+                                            log.batches().clone(),
                                         )
                                     }
                                 };
                                 println!(">>> fpr {:?}", fpr);
                                 FetchResponse::new(t.topic_id(), vec![fpr])
                             })
-                            .collect()
+                            .collect(),
                     })
-                },
+                }
                 _ => Err(Error::UnsupportedApiVersion(
                     2,
                     Some(request.header.correlation_id()),
@@ -227,14 +229,11 @@ impl From<Response> for Vec<u8> {
                     .into_iter()
                     .flat_map::<Vec<u8>, _>(|e| e.into())
                     .collect();
-                let is_empty =responses_bytes.is_empty();
+                let is_empty = responses_bytes.is_empty();
                 bytes.extend(responses_bytes);
                 if is_empty {
                     bytes.put_u8(*TagBuffer::zero());
                 }
-                //
-                //
-                // bytes.put_u8(*TagBuffer::zero());
                 with_message_size(&bytes)
             }
         }
@@ -246,7 +245,7 @@ impl TryFrom<RecordValue> for Partition {
 
     fn try_from(value: RecordValue) -> Result<Self> {
         match value {
-            RecordValue::FeatureLevelRecord(_) |RecordValue::RawValue(_) => {
+            RecordValue::FeatureLevelRecord(_) | RecordValue::RawValue(_) => {
                 Err(Error::general("Expected Partition record"))
             }
             RecordValue::TopicRecord(..) => {

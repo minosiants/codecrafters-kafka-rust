@@ -1,4 +1,4 @@
-use crate::{Context, Error, Result};
+use crate::{Error, Result};
 use bytes::BufMut;
 use std::convert::TryFrom;
 use std::ops::Deref;

@@ -7,7 +7,6 @@ use codecrafters_kafka::{
     Context, CorrelationId, Error, ErrorCode, MessageSize, Request, Response,
     Result,
 };
-use pretty_hex::simple_hex;
 
 fn error_response(correlation_id: &CorrelationId) -> Vec<u8> {
     let mut error: Vec<u8> = Vec::new();
