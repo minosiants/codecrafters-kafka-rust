@@ -67,9 +67,8 @@ impl RequestBody {
     pub fn mk(api_key: ApiKey, body: &[u8]) -> Result<Self> {
         match api_key {
             ApiKey::ApiVersions => Ok(RequestBody::ApiVersions),
-            ApiKey::DescribeTopicPartitions => {
-                Self::describe_topic_partitions(body)
-            }
+            ApiKey::DescribeTopicPartitions =>
+                Self::describe_topic_partitions(body),
             ApiKey::Fetch => Self::fetch(body),
         }
     }
@@ -94,7 +93,8 @@ impl RequestBody {
         let array_length: u8 = body[0] - 1;
         let topics: Vec<TopicName> =
             topic_name(&body[1..], vec![], array_length)?;
-        let topics_size = topics.iter().fold(0, |acc, v| acc + (*v).len()) + 1;
+        let topics_size =
+            topics.iter().fold(0, |acc, v| acc + v.value().len()) + 1;
         let limit =
             ResponsePartitionLimit::mk(&body[topics_size..topics_size + 4])?;
         let cursor = Cursor::mk(body[topics_size + 4]);
@@ -106,27 +106,20 @@ impl RequestBody {
         })
     }
     fn fetch(body: &[u8]) -> Result<Self> {
-        println!("fetch {:?}", simple_hex(&body));
         let (max_wait, rest) = body.extract_u32_into(MaxWait::new)?;
-        println!("max_wait {:?}", max_wait);
         let (min_bytes, rest) = rest.extract_u32_into(MinBytes::new)?;
         let (max_bytes, rest) = rest.extract_u32_into(MaxBytes::new)?;
         let (isolation_level, rest) =
             rest.extract_u8_into(IsolationLevel::new)?;
-        println!("isolation_level {:?}", isolation_level);
         let (session_id, rest) = rest.extract_u32_into(SessionId::new)?;
-        println!("session_id {:?}", session_id);
         let (session_epoch, rest) = rest.extract_u32_into(SessionEpoch::new)?;
-        println!("session_epoch {:?}", session_epoch);
-        println!("topics {:?}", rest.hex_dump());
         let (topics, rest) = rest.extract_array_into()?;
         let (forgotten_topics_data, rest) =
             rest.drop(1).second().and_then(|v| v.extract_array_into())?;
-        println!("forgotten_topics_data {:?}", forgotten_topics_data);
-        println!("rack_id hex {:?}", simple_hex(&rest));
+
         let (rack_id, _rest) =
             rest.extract_compact_str().map_tuple(RackId::new)?;
-        println!("rack_id {:?}", rack_id);
+
         Ok(RequestBody::Fetch {
             max_wait,
             min_bytes,
@@ -194,7 +187,7 @@ impl TryFrom<&mut TcpStream> for Request {
             rest.drop(4).second().and_then(|v| v.extract_u16())?; //drop correlation_id
         let (client_id, rest) = rest
             .extract_str(client_id_length as usize)
-            .map_tuple(ClientId::new)?;
+            .map_tuple(|s| ClientId::new(s.to_string()))?;
         println!("client_id {:?}", client_id);
         let header =
             RequestHeader::new(api_key, api_version, correlation_id, client_id);

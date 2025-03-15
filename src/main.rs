@@ -23,18 +23,10 @@ fn process_stream(stream: &mut TcpStream) -> Result<Vec<u8>> {
         .and_then(|r| Response::response(&r))
         .map(|v| v.into())
         .unwrap_or_else(|e| match e {
-            Error::UnsupportedApiVersion(_, Some(id)) => {
-                error_response(&id)
-            }
-            Error::UnsupportedApiKey(_, Some(id)) => {
-                error_response(&id)
-            }
-            Error::ErrorWrapper(txt, err) => {
-                Vec::new()
-            }
-            e => {
-                Vec::new()
-            }
+            Error::UnsupportedApiVersion(_, Some(id)) => error_response(&id),
+            Error::UnsupportedApiKey(_, Some(id)) => error_response(&id),
+            Error::ErrorWrapper(txt, err) => Vec::new(),
+            e => Vec::new(),
         });
     Ok(res)
 }
@@ -50,11 +42,10 @@ fn main() -> Result<()> {
     let mut handlers = vec![];
     for stream in listener.incoming() {
         let handler = thread::spawn(move || match stream {
-            Ok(mut stream) => {
+            Ok(mut stream) =>
                 while let Ok(resp) = process_stream(&mut stream) {
                     stream.write(resp.as_ref()).context("").unwrap();
-                }
-            }
+                },
             Err(e) => {
                 println!("error: {}", e);
             }

@@ -1,8 +1,8 @@
 use crate::{Error, Result};
 use bytes::BufMut;
+use newtype_macro::newtype;
 use std::convert::TryFrom;
 use std::ops::Deref;
-
 #[derive(Debug, Copy, Clone)]
 pub enum Version {
     V0,
@@ -105,33 +105,12 @@ impl Deref for ApiKey {
         }
     }
 }
-#[derive(Debug, Copy, Clone)]
+#[newtype]
 pub struct MessageSize(u32);
 
 impl MessageSize {
-    pub fn new(value: u32) -> Self {
-        MessageSize(value)
-    }
     pub fn try_from_bytes(value: [u8; 4]) -> Result<Self> {
         Ok(Self(u32::from_be_bytes(value)))
-    }
-}
-impl AsRef<u32> for MessageSize {
-    fn as_ref(&self) -> &u32 {
-        &self.0
-    }
-}
-
-impl Deref for MessageSize {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl From<u32> for MessageSize {
-    fn from(value: u32) -> Self {
-        MessageSize(value)
     }
 }
 
@@ -170,24 +149,15 @@ impl From<Api> for Vec<u8> {
         bytes
     }
 }
-#[derive(Debug, Copy, Clone)]
+#[newtype]
 pub struct TagBuffer(u8);
 
 impl TagBuffer {
-    pub fn new(value: u8) -> Self {
-        Self(value)
-    }
     pub fn zero() -> TagBuffer {
         Self(0)
     }
 }
-impl Deref for TagBuffer {
-    type Target = u8;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 #[derive(Debug, Clone, Copy)]
 pub enum ErrorCode {
     UnsupportedVersion,
@@ -207,234 +177,51 @@ impl Deref for ErrorCode {
         }
     }
 }
-#[derive(Debug, Clone, Copy)]
+#[newtype]
 pub struct CorrelationId(u32);
-impl CorrelationId {
-    pub fn new(value: u32) -> Self {
-        Self(value)
-    }
-}
 
-impl Deref for CorrelationId {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone, Copy)]
+#[newtype]
 pub struct ThrottleTime(u32);
 
 impl ThrottleTime {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
     pub fn zero() -> Self {
         Self(0)
     }
 }
-impl Deref for ThrottleTime {
-    type Target = u32;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct ClientId(String);
 
-impl ClientId {
-    pub fn new(str: &str) -> Self {
-        Self(str.to_string())
-    }
-}
-
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct Length(i16);
-
-impl Deref for Length {
-    type Target = i16;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<Length> for usize {
-    fn from(value: Length) -> Self {
-        value.0 as usize
-    }
-}
-impl Length {
-    pub fn new(v: i16) -> Self {
-        Self(v)
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct SessionId(u32);
-impl SessionId {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
 
-impl Deref for SessionId {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct MaxWait(u32);
-impl MaxWait {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-
-impl Deref for MaxWait {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct MinBytes(u32);
-impl MinBytes {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-impl Deref for MinBytes {
-    type Target = u32;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct MaxBytes(u32);
-impl MaxBytes {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-impl Deref for MaxBytes {
-    type Target = u32;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct IsolationLevel(u8);
-impl IsolationLevel {
-    pub fn new(v: u8) -> Self {
-        Self(v)
-    }
-}
-impl Deref for IsolationLevel {
-    type Target = u8;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct SessionEpoch(u32);
-impl SessionEpoch {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-impl Deref for SessionEpoch {
-    type Target = u32;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct HighWatermark(u64);
 
-impl HighWatermark {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
-
-impl Deref for HighWatermark {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct LastStableOffset(u64);
 
-impl LastStableOffset {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
-
-impl Deref for LastStableOffset {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-
+#[newtype]
 pub struct ProducerId(u64);
-impl ProducerId {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
 
-impl Deref for ProducerId {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct FirstOffset(u64);
-impl FirstOffset {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
 
-impl Deref for FirstOffset {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-
+#[newtype]
 pub struct PreferredReadReplica(u32);
-
-impl PreferredReadReplica {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-
-impl Deref for PreferredReadReplica {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}

@@ -141,12 +141,10 @@ impl Response {
                                     None => FetchPartitionResponse::unknown(
                                         PartitionIndex::new(0),
                                     ),
-                                    Some(log) => {
-                                        FetchPartitionResponse::new(
-                                            PartitionIndex::new(0),
-                                            log.batches().clone(),
-                                        )
-                                    }
+                                    Some(log) => FetchPartitionResponse::new(
+                                        PartitionIndex::new(0),
+                                        log.batches().clone(),
+                                    ),
                                 };
                                 FetchResponse::new(t.topic_id(), vec![fpr])
                             })
@@ -240,12 +238,10 @@ impl TryFrom<RecordValue> for Partition {
 
     fn try_from(value: RecordValue) -> Result<Self> {
         match value {
-            RecordValue::FeatureLevelRecord(_) | RecordValue::RawValue(_) => {
-                Err(Error::general("Expected Partition record"))
-            }
-            RecordValue::TopicRecord(..) => {
-                Err(Error::general("Expected Partition record"))
-            }
+            RecordValue::FeatureLevelRecord(_) | RecordValue::RawValue(_) =>
+                Err(Error::general("Expected Partition record")),
+            RecordValue::TopicRecord(..) =>
+                Err(Error::general("Expected Partition record")),
             RecordValue::PartitionRecord(
                 _,
                 _,

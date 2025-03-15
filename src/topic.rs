@@ -1,7 +1,9 @@
 use crate::{Context, ErrorCode, Partition, Result, TagBuffer, VarInt};
 use bytes::BufMut;
+use newtype_macro::newtype;
 use std::ops::Deref;
 use uuid::*;
+
 #[derive(Debug, Clone)]
 pub struct Topic {
     error_code: ErrorCode,
@@ -45,8 +47,8 @@ impl From<Topic> for Vec<u8> {
     fn from(topic: Topic) -> Self {
         let mut bytes = Vec::new();
         bytes.put_i16(*topic.error_code);
-        bytes.extend(VarInt::encode((topic.name.len() + 1) as u64));
-        bytes.put_slice((*topic.name).as_bytes());
+        bytes.extend(VarInt::encode((topic.name.value().len() + 1) as u64));
+        bytes.put_slice(topic.name.value().as_bytes());
         bytes.put_slice((*topic.id).as_bytes());
         bytes.put_u8(u8::from(topic.is_internal));
         bytes.put_u8(topic.partitions.len() as u8 + 1);
@@ -61,36 +63,18 @@ impl From<Topic> for Vec<u8> {
         bytes
     }
 }
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct TopicName(String);
 
 impl TopicName {
-    pub fn new(name: String) -> Self {
-        TopicName(name)
-    }
     pub fn from_str(name: &str) -> Self {
         Self::new(name.to_string())
     }
 }
-impl PartialEq for &TopicName {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
 
-impl Deref for TopicName {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone, PartialEq)]
+#[newtype]
 pub struct TopicId(Uuid);
 impl TopicId {
-    pub fn new(id: Uuid) -> Self {
-        Self(id)
-    }
     pub fn mk(v: &[u8]) -> Result<Self> {
         Uuid::from_slice(v).context("uuid").map(Self::new)
     }
@@ -101,21 +85,5 @@ impl TopicId {
     }
 }
 
-impl Deref for TopicId {
-    type Target = Uuid;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone)]
+#[newtype]
 pub struct TopicAuthorizedOperations(u32);
-
-impl Deref for TopicAuthorizedOperations {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}

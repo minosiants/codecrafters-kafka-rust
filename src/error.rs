@@ -37,9 +37,8 @@ impl Error {
         match self {
             UnsupportedApiVersion(v, _) => UnsupportedApiVersion(*v, Some(id)),
             UnsupportedApiKey(v, _) => UnsupportedApiKey(*v, Some(id)),
-            UnknownTopicOrPartition(v, _) => {
-                UnknownTopicOrPartition(*v, Some(id))
-            }
+            UnknownTopicOrPartition(v, _) =>
+                UnknownTopicOrPartition(*v, Some(id)),
             _ => self.clone(),
         }
     }

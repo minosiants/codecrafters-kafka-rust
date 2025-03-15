@@ -1,15 +1,67 @@
 use std::ops::Deref;
 
+use crate::{
+    read, AddingReplica, BytesOps, Directory, ISRNode, Leader, LeaderEpoch,
+    MapTupleTwo, NodeId, PartitionEpoch, PartitionIndex, RemovingReplica,
+    ReplicaNode, Result, SignedVarInt, TagBuffer, ToArray, ToCompactString,
+    TopicId, TopicName,
+};
 use bytes::BufMut;
+use newtype_macro::newtype;
 use pretty_hex::*;
 use uuid::Uuid;
 
-use crate::{
-    read, AddingReplica, BytesOps, Directory, ISRNode, Leader, LeaderEpoch,
-    MapTupleTwo, PartitionEpoch, PartitionIndex, RemovingReplica, ReplicaNode,
-    Result, SignedVarInt, TagBuffer, ToArray, ToCompactString, TopicId,
-    TopicName,
-};
+#[newtype]
+pub struct RecordAttributes(u8);
+
+#[newtype]
+pub struct TimestampDelta(u8);
+
+#[newtype]
+pub struct OffsetDelta(u8);
+
+#[newtype]
+pub struct FrameVersion(u8);
+
+#[newtype]
+pub struct ValueVersion(u8);
+
+#[newtype]
+pub struct Header(u64);
+#[newtype]
+pub struct BatchOffset(u64);
+#[newtype]
+struct BatchLength(u32);
+
+#[newtype]
+struct PartitionLeaderEpic(u32);
+
+#[newtype]
+struct MagicByte(u8);
+
+#[newtype]
+pub struct CRC(u32);
+
+#[newtype]
+struct Attributes(u16);
+
+#[newtype]
+struct LastOffsetDelta(u32);
+
+#[newtype]
+struct BaseTimestamp(u64);
+
+#[newtype]
+struct MaxTimestamp(u64);
+
+#[newtype]
+struct ProducerId(u64);
+
+#[newtype]
+struct ProducerEpoch(u16);
+
+#[newtype]
+struct BaseSequence(u32);
 
 // https://binspec.org/kafka-cluster-metadata
 //
@@ -28,7 +80,7 @@ impl Log {
         //let partition_metadata = format!("/tmp/kraft-combined-logs/{}-0/partition.metadata", **topic_name);
         let log = format!(
             "/tmp/kraft-combined-logs/{}-0/00000000000000000000.log",
-            **topic_name
+            topic_name.value()
         );
 
         //let l1 = read(&partition_metadata)?;
@@ -74,9 +126,8 @@ impl Meta {
             .iter()
             .flat_map(|b| b.records.iter()) // Flatten inner structure
             .find_map(|r| match &r.value {
-                RecordValue::TopicRecord(_, _, name, id) if id == topic_id => {
-                    Some(name.clone())
-                } // Return owned `TopicId`
+                RecordValue::TopicRecord(_, _, name, id) if id == topic_id =>
+                    Some(name.clone()), // Return owned `TopicId`
                 _ => None,
             })
     }
@@ -98,185 +149,12 @@ impl Meta {
             .find_map(|r| match &r.value {
                 RecordValue::TopicRecord(_, _, name, id)
                     if name == topic_name =>
-                {
-                    Some(id.clone())
-                } // Return owned `TopicId`
+                    Some(id.clone()), // Return owned `TopicId`
                 _ => None,
             })
     }
     fn records(&self) -> Vec<&Record> {
         self.0.iter().flat_map(|v| v.records.iter()).collect()
-    }
-}
-#[derive(Debug, Clone)]
-pub struct BatchOffset(u64);
-impl BatchOffset {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
-
-impl Deref for BatchOffset {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct BatchLength(u32);
-impl BatchLength {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-impl Deref for BatchLength {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct PartitionLeaderEpic(u32);
-impl PartitionLeaderEpic {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-impl Deref for PartitionLeaderEpic {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct MagicByte(u8);
-impl MagicByte {
-    pub fn new(v: u8) -> Self {
-        Self(v)
-    }
-}
-impl Deref for MagicByte {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-pub struct CRC(u32);
-impl CRC {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-
-impl Deref for CRC {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct Attributes(u16);
-impl Attributes {
-    pub fn new(v: u16) -> Self {
-        Self(v)
-    }
-}
-impl Deref for Attributes {
-    type Target = u16;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct LastOffsetDelta(u32);
-impl LastOffsetDelta {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-impl Deref for LastOffsetDelta {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone)]
-struct BaseTimestamp(u64);
-impl BaseTimestamp {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
-impl Deref for BaseTimestamp {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct MaxTimestamp(u64);
-impl MaxTimestamp {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
-impl Deref for MaxTimestamp {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct ProducerId(u64);
-impl ProducerId {
-    pub fn new(v: u64) -> Self {
-        Self(v)
-    }
-}
-impl Deref for ProducerId {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct ProducerEpoch(u16);
-impl ProducerEpoch {
-    pub fn new(v: u16) -> Self {
-        Self(v)
-    }
-}
-impl Deref for ProducerEpoch {
-    type Target = u16;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-struct BaseSequence(u32);
-impl BaseSequence {
-    pub fn new(v: u32) -> Self {
-        Self(v)
-    }
-}
-impl Deref for BaseSequence {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -440,36 +318,6 @@ impl From<Batch> for Vec<u8> {
         result
     }
 }
-#[derive(Debug, Clone)]
-pub struct FrameVersion(u8);
-impl FrameVersion {
-    pub fn new(v: u8) -> Self {
-        Self(v)
-    }
-}
-impl Deref for FrameVersion {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-pub struct ValueVersion(u8);
-impl ValueVersion {
-    pub fn new(v: u8) -> Self {
-        Self(v)
-    }
-}
-impl Deref for ValueVersion {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-pub struct Header(u64);
 
 #[derive(Debug, Clone)]
 pub struct Record {
@@ -501,49 +349,6 @@ impl From<Record> for Vec<u8> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct RecordAttributes(u8);
-impl RecordAttributes {
-    pub fn new(v: u8) -> Self {
-        Self(v)
-    }
-}
-impl Deref for RecordAttributes {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[derive(Debug, Clone)]
-pub struct TimestampDelta(u8);
-impl TimestampDelta {
-    pub fn new(v: u8) -> Self {
-        Self(v)
-    }
-}
-impl Deref for TimestampDelta {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct OffsetDelta(u8);
-impl OffsetDelta {
-    pub fn new(v: u8) -> Self {
-        Self(v)
-    }
-}
-impl Deref for OffsetDelta {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 #[derive(Debug, Clone)]
 pub struct RecordKey(Vec<u8>);
 
@@ -658,6 +463,13 @@ impl Record {
             topic_id,
         ))
     }
+    fn array_node_id<T>(
+        v: &[u8],
+        f: impl FnMut(NodeId) -> T,
+    ) -> Result<(Vec<T>, &[u8])> {
+        let (vec, rest) = v.extract_array(NodeId::new)?;
+        Ok((vec.into_iter().map(f).collect(), rest))
+    }
     fn partition_record(v: &[u8]) -> Result<RecordValue> {
         let (frame_version, rest) = v.extract_u8_into(FrameVersion::new)?;
         let (_type, rest) = rest.extract_u8()?;
@@ -665,11 +477,12 @@ impl Record {
         let (partition_index, rest) =
             rest.extract_u32_into(PartitionIndex::new)?;
         let (topic_id, rest) = rest.extract_uuid_into(TopicId::new)?;
-        let (replicas, rest) = rest.extract_array(ReplicaNode::new)?;
-        let (isrs, rest) = rest.extract_array(ISRNode::new)?;
-        let (removing, rest) = rest.extract_array(RemovingReplica::new)?;
-        let (adding, rest) = rest.extract_array(AddingReplica::new)?;
-        let (leader, rest) = rest.extract_u32_into(Leader::new)?;
+        let (replicas, rest) = Self::array_node_id(rest, ReplicaNode::new)?;
+        let (isrs, rest) = Self::array_node_id(rest, ISRNode::new)?;
+        let (removing, rest) = Self::array_node_id(rest, RemovingReplica::new)?;
+        let (adding, rest) = Self::array_node_id(rest, AddingReplica::new)?;
+        let (leader, rest) =
+            rest.extract_u32_into(NodeId::new).map_tuple(|v| Leader::new(v))?;
         let (leader_epoch, rest) = rest.extract_u32_into(LeaderEpoch::new)?;
         let (partition_epoch, rest) =
             rest.extract_u32_into(PartitionEpoch::new)?;
@@ -718,9 +531,8 @@ impl Record {
     pub fn topic_id(&self) -> Option<TopicId> {
         match &self.value {
             RecordValue::FeatureLevelRecord(_) => None,
-            RecordValue::TopicRecord(_, _, _, topic_id) => {
-                Some(topic_id.clone())
-            }
+            RecordValue::TopicRecord(_, _, _, topic_id) =>
+                Some(topic_id.clone()),
             RecordValue::PartitionRecord(
                 _,
                 _,
@@ -784,7 +596,7 @@ impl From<RecordValue> for Vec<u8> {
                 bytes.extend(
                     replica_nodes
                         .into_iter()
-                        .map(|v| *v)
+                        .map(|v| **v)
                         .collect::<Vec<u32>>()
                         .to_pb_array()
                         .unwrap(),
@@ -792,7 +604,7 @@ impl From<RecordValue> for Vec<u8> {
                 bytes.extend(
                     isr_nodes
                         .into_iter()
-                        .map(|v| *v)
+                        .map(|v| **v)
                         .collect::<Vec<u32>>()
                         .to_pb_array()
                         .unwrap(),
@@ -800,7 +612,7 @@ impl From<RecordValue> for Vec<u8> {
                 bytes.extend(
                     removing_replicas
                         .into_iter()
-                        .map(|v| *v)
+                        .map(|v| **v)
                         .collect::<Vec<u32>>()
                         .to_pb_array()
                         .unwrap(),
@@ -808,13 +620,13 @@ impl From<RecordValue> for Vec<u8> {
                 bytes.extend(
                     adding_replicas
                         .into_iter()
-                        .map(|v| *v)
+                        .map(|v| **v)
                         .collect::<Vec<u32>>()
                         .to_pb_array()
                         .unwrap(),
                 );
 
-                bytes.put_u32(*leader);
+                bytes.put_u32(**leader);
                 bytes.put_u32(*leader_epoch);
                 bytes.put_u32(*partition_epoch);
                 bytes.extend(

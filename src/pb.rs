@@ -1,4 +1,4 @@
-use crate::{Context, Error, MapTupleTwo, Result, TopicName};
+use crate::{Context, Error, MapTupleTwo, NodeId, Result, TopicName};
 use bytes::{Buf, BufMut};
 use pretty_hex::simple_hex;
 use std::ops::Deref;
