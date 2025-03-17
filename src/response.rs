@@ -2,9 +2,9 @@ use std::ops::Deref;
 
 use crate::{
     Api, ApiKey, CorrelationId, Error, ErrorCode, FetchPartitionResponse,
-    FetchResponse, Meta, Partition, PartitionIndex, RecordValue, Request,
-    RequestBody, Result, SessionId, TagBuffer, ThrottleTime, Topic, VarInt,
-    Version,
+    FetchResponse, Meta, Partition, PartitionIndex, PartitionRecordValue,
+    RecordValue, Request, RequestBody, Result, SessionId, TagBuffer,
+    ThrottleTime, Topic, VarInt, Version,
 };
 use bytes::BufMut;
 
@@ -233,36 +233,31 @@ impl From<Response> for Vec<u8> {
     }
 }
 
-impl TryFrom<RecordValue> for Partition {
+impl TryFrom<PartitionRecordValue> for Partition {
     type Error = Error;
 
-    fn try_from(value: RecordValue) -> Result<Self> {
-        match value {
-            RecordValue::FeatureLevelRecord(_) | RecordValue::RawValue(_) =>
-                Err(Error::general("Expected Partition record")),
-            RecordValue::TopicRecord(..) =>
-                Err(Error::general("Expected Partition record")),
-            RecordValue::PartitionRecord(
-                _,
-                _,
-                partition_id,
-                _,
-                leader,
-                leader_epoch,
-                _,
-                replica_nodes,
-                isr_nodes,
-                ..,
-            ) => Ok(Partition::new(
-                partition_id,
-                leader,
-                leader_epoch,
-                replica_nodes,
-                isr_nodes,
-                vec![],
-                vec![],
-                vec![],
-            )),
-        }
+    fn try_from(value: PartitionRecordValue) -> Result<Self> {
+        let PartitionRecordValue(
+            _,
+            _,
+            partition_id,
+            _,
+            leader,
+            leader_epoch,
+            _,
+            replica_nodes,
+            isr_nodes,
+            ..,
+        ) = value;
+        Ok(Partition::new(
+            partition_id,
+            leader,
+            leader_epoch,
+            replica_nodes.clone(),
+            isr_nodes.clone(),
+            vec![],
+            vec![],
+            vec![],
+        ))
     }
 }

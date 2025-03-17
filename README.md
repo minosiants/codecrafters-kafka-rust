@@ -14,4 +14,18 @@ about handling the network protocol, event loops, TCP sockets and more.
 
 # Refactoring 
 ### Newtype macro
-[lib.rs](newtype-macro%2Fsrc%2Flib.rs)
+
+### Enums
+
+Enum Variants as types are not supported in rust 
+this is a common workaround 
+
+```rust
+struct Dog {}
+struct Whale {}
+enum Animal {
+    Dog(Dog),
+    Whale(Whale),
+}
+```
+

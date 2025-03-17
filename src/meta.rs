@@ -125,31 +125,30 @@ impl Meta {
         self.0
             .iter()
             .flat_map(|b| b.records.iter()) // Flatten inner structure
-            .find_map(|r| match &r.value {
-                RecordValue::TopicRecord(_, _, name, id) if id == topic_id =>
-                    Some(name.clone()), // Return owned `TopicId`
+            .find_map(|r| match r.topic_id() {
+                Some(t) if t == topic_id.clone() => r.value.name(),
                 _ => None,
             })
     }
-    pub fn find_partitions(&self, topic_id: &TopicId) -> Vec<&RecordValue> {
+    pub fn find_partitions(
+        &self,
+        topic_id: &TopicId,
+    ) -> Vec<&PartitionRecordValue> {
         self.0
             .iter()
-            .flat_map(|b| b.records.iter()) // Flatten inner structure
-            .filter(|r| {
-                r.is_partition_record()
-                    && r.topic_id().filter(|id| *topic_id == *id).is_some()
+            .flat_map(|b| b.records.iter())
+            .filter_map(|r| match r.topic_id() {
+                Some(t) if t == topic_id.clone() => r.value.partition_record(),
+                _ => None,
             })
-            .map(|v| &v.value)
             .collect()
     }
     pub fn find_topic_id(&self, topic_name: &TopicName) -> Option<TopicId> {
         self.0
             .iter()
             .flat_map(|b| b.records.iter()) // Flatten inner structure
-            .find_map(|r| match &r.value {
-                RecordValue::TopicRecord(_, _, name, id)
-                    if name == topic_name =>
-                    Some(id.clone()), // Return owned `TopicId`
+            .find_map(|r| match r.value.name() {
+                Some(n) if n == topic_name.clone() => r.topic_id(),
                 _ => None,
             })
     }
@@ -375,46 +374,215 @@ impl Deref for RecordKey {
     }
 }
 #[derive(Debug, Clone)]
-pub enum RecordValue {
-    FeatureLevelRecord(Vec<u8>),
-    TopicRecord(FrameVersion, ValueVersion, TopicName, TopicId),
-    PartitionRecord(
-        FrameVersion,
-        ValueVersion,
-        PartitionIndex,
-        TopicId,
-        Leader,
-        LeaderEpoch,
-        PartitionEpoch,
-        Vec<ReplicaNode>,
-        Vec<ISRNode>,
-        Vec<AddingReplica>,
-        Vec<RemovingReplica>,
-        Vec<Directory>,
-    ),
-    RawValue(Vec<u8>),
+pub struct TopicRecordValue(FrameVersion, ValueVersion, TopicName, TopicId);
+impl From<TopicRecordValue> for Vec<u8> {
+    fn from(value: TopicRecordValue) -> Self {
+        let TopicRecordValue(
+            frame_version,
+            value_version,
+            topic_name,
+            topic_id,
+        ) = value;
+        let mut bytes = vec![];
+        bytes.put_u8(*frame_version);
+        bytes.put_u8(0x02);
+        bytes.put_u8(*value_version);
+        bytes.extend(topic_name.to_compact_string());
+        bytes.extend((*topic_id).as_bytes());
+        bytes.put_u8(*TagBuffer::zero());
+        bytes
+    }
 }
+#[derive(Debug, Clone)]
+pub struct PartitionRecordValue(
+    pub FrameVersion,
+    pub ValueVersion,
+    pub PartitionIndex,
+    pub TopicId,
+    pub Leader,
+    pub LeaderEpoch,
+    pub PartitionEpoch,
+    pub Vec<ReplicaNode>,
+    pub Vec<ISRNode>,
+    pub Vec<AddingReplica>,
+    pub Vec<RemovingReplica>,
+    pub Vec<Directory>,
+);
+
+impl From<PartitionRecordValue> for Vec<u8> {
+    fn from(value: PartitionRecordValue) -> Self {
+        let PartitionRecordValue(
+            frame_version,
+            value_version,
+            partition_index,
+            topic_id,
+            leader,
+            leader_epoch,
+            partition_epoch,
+            replica_nodes,
+            isr_nodes,
+            adding_replicas,
+            removing_replicas,
+            directrories,
+        ) = value;
+
+        let mut bytes = vec![];
+        bytes.put_u8(*frame_version);
+        bytes.put_u8(0x03);
+        bytes.put_u8(*value_version);
+        bytes.put_u32(*partition_index);
+        bytes.extend((*topic_id).as_bytes());
+        //todo refactor
+        bytes.extend(
+            replica_nodes
+                .into_iter()
+                .map(|v| **v)
+                .collect::<Vec<u32>>()
+                .to_pb_array()
+                .unwrap(),
+        );
+        bytes.extend(
+            isr_nodes
+                .into_iter()
+                .map(|v| **v)
+                .collect::<Vec<u32>>()
+                .to_pb_array()
+                .unwrap(),
+        );
+        bytes.extend(
+            removing_replicas
+                .into_iter()
+                .map(|v| **v)
+                .collect::<Vec<u32>>()
+                .to_pb_array()
+                .unwrap(),
+        );
+        bytes.extend(
+            adding_replicas
+                .into_iter()
+                .map(|v| **v)
+                .collect::<Vec<u32>>()
+                .to_pb_array()
+                .unwrap(),
+        );
+
+        bytes.put_u32(**leader);
+        bytes.put_u32(*leader_epoch);
+        bytes.put_u32(*partition_epoch);
+        bytes.extend(
+            directrories
+                .into_iter()
+                .map(|v| *v)
+                .collect::<Vec<Uuid>>()
+                .to_pb_array()
+                .unwrap(),
+        );
+        bytes.put_u8(*TagBuffer::zero());
+        bytes
+    }
+}
+#[derive(Debug, Clone)]
+pub struct FeatureLevelRecordValue(Vec<u8>);
+impl From<FeatureLevelRecordValue> for Vec<u8> {
+    fn from(value: FeatureLevelRecordValue) -> Self {
+        value.0
+    }
+}
+#[derive(Debug, Clone)]
+pub struct RawValue(Vec<u8>);
+impl From<RawValue> for Vec<u8> {
+    fn from(value: RawValue) -> Self {
+        value.0
+    }
+}
+#[derive(Debug, Clone)]
+pub enum RecordValue {
+    FeatureLevelRecord(FeatureLevelRecordValue),
+    TopicRecord(TopicRecordValue),
+    PartitionRecord(PartitionRecordValue),
+    Raw(RawValue),
+}
+
 impl RecordValue {
-    fn record_type(&self) -> u8 {
+    pub fn fold<'a, Z>(
+        &'a self,
+        flrv: impl FnOnce(&'a FeatureLevelRecordValue) -> Z,
+        trv: impl FnOnce(&'a TopicRecordValue) -> Z,
+        prv: impl FnOnce(&'a PartitionRecordValue) -> Z,
+        rv: impl FnOnce(&'a RawValue) -> Z,
+    ) -> Z {
         match self {
-            RecordValue::FeatureLevelRecord(_) => 0x0c,
-            RecordValue::TopicRecord(_, _, _, _) => 0x02,
-            RecordValue::PartitionRecord(
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-            ) => 0x03,
-            RecordValue::RawValue(_) => 0xff,
+            RecordValue::FeatureLevelRecord(v) => flrv(v),
+            RecordValue::TopicRecord(v) => trv(v),
+            RecordValue::PartitionRecord(v) => prv(v),
+            RecordValue::Raw(v) => rv(v),
         }
+    }
+    pub fn feature_level_record(&self) -> Option<&FeatureLevelRecordValue> {
+        self.fold(|v| Some(v), |_| None, |_| None, |_| None)
+    }
+    pub fn topic_record(&self) -> Option<&TopicRecordValue> {
+        self.fold(|_| None, |v| Some(v), |_| None, |_| None)
+    }
+    pub fn partition_record(&self) -> Option<&PartitionRecordValue> {
+        self.fold(|_| None, |_| None, |v| Some(v), |_| None)
+    }
+    pub fn raw(&self) -> Option<&RawValue> {
+        self.fold(|_| None, |_| None, |_| None, |v| Some(v))
+    }
+    pub fn topic_id(&self) -> Option<TopicId> {
+        self.fold(|_| None, |v| Some(v.3.clone()), |v| Some(v.3), |_| None)
+    }
+    pub fn name(&self) -> Option<TopicName> {
+        self.fold(|_| None, |v| Some(v.2.clone()), |_| None, |_| None)
+    }
+    fn mk_feature_level_record(v: &[u8]) -> RecordValue {
+        RecordValue::FeatureLevelRecord(FeatureLevelRecordValue(v.to_vec()))
+    }
+    fn mk_topic_record(
+        frame_version: FrameVersion,
+        value_version: ValueVersion,
+        topic_name: TopicName,
+        topic_id: TopicId,
+    ) -> RecordValue {
+        RecordValue::TopicRecord(TopicRecordValue(
+            frame_version,
+            value_version,
+            topic_name,
+            topic_id,
+        ))
+    }
+    fn mk_partition_record(
+        frame_version: FrameVersion,
+        value_version: ValueVersion,
+        partition_index: PartitionIndex,
+        topic_id: TopicId,
+        leader: Leader,
+        leader_epoch: LeaderEpoch,
+        partition_epoch: PartitionEpoch,
+        replica: Vec<ReplicaNode>,
+        isr: Vec<ISRNode>,
+        adding_replica: Vec<AddingReplica>,
+        removing_replica: Vec<RemovingReplica>,
+        direcrories: Vec<Directory>,
+    ) -> RecordValue {
+        RecordValue::PartitionRecord(PartitionRecordValue(
+            frame_version,
+            value_version,
+            partition_index,
+            topic_id,
+            leader,
+            leader_epoch,
+            partition_epoch,
+            replica,
+            isr,
+            adding_replica,
+            removing_replica,
+            direcrories,
+        ))
+    }
+    fn mk_raw(v: &[u8]) -> RecordValue {
+        RecordValue::Raw(RawValue(v.to_vec()))
     }
 }
 impl Record {
@@ -444,10 +612,10 @@ impl Record {
         })
     }
     fn raw_value(v: &[u8]) -> Result<RecordValue> {
-        Ok(RecordValue::RawValue(v.to_vec()))
+        Ok(RecordValue::mk_raw(v))
     }
     fn feature_level_record(v: &[u8]) -> Result<RecordValue> {
-        Ok(RecordValue::FeatureLevelRecord(v.to_vec()))
+        Ok(RecordValue::mk_feature_level_record(v))
     }
     pub fn topic_record(v: &[u8]) -> Result<RecordValue> {
         let (frame_version, rest) = v.extract_u8_into(FrameVersion::new)?;
@@ -456,7 +624,7 @@ impl Record {
         let (topic_name, rest) =
             rest.extract_compact_str().map_tuple(TopicName::new)?;
         let topic_id = rest.extract_uuid_into(TopicId::new).first()?;
-        Ok(RecordValue::TopicRecord(
+        Ok(RecordValue::mk_topic_record(
             frame_version,
             version,
             topic_name,
@@ -487,7 +655,7 @@ impl Record {
         let (partition_epoch, rest) =
             rest.extract_u32_into(PartitionEpoch::new)?;
         let (directories, rest) = rest.extract_array_into::<Uuid>()?;
-        Ok(RecordValue::PartitionRecord(
+        Ok(RecordValue::mk_partition_record(
             frame_version,
             version,
             partition_index,
@@ -504,145 +672,22 @@ impl Record {
     }
 
     pub fn is_partition_record(&self) -> bool {
-        match self.value {
-            RecordValue::PartitionRecord(
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-            ) => true,
-            _ => false,
-        }
+        self.value.partition_record().is_some()
     }
     pub fn is_topic_record(&self) -> bool {
-        match self.value {
-            RecordValue::TopicRecord(_, _, _, _) => true,
-            _ => false,
-        }
+        self.value.topic_record().is_some()
     }
     pub fn topic_id(&self) -> Option<TopicId> {
-        match &self.value {
-            RecordValue::FeatureLevelRecord(_) => None,
-            RecordValue::TopicRecord(_, _, _, topic_id) =>
-                Some(topic_id.clone()),
-            RecordValue::PartitionRecord(
-                _,
-                _,
-                _,
-                topic_id,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-            ) => Some(topic_id.clone()),
-            RecordValue::RawValue(_) => None,
-        }
+        self.value.topic_id()
     }
 }
 
 impl From<RecordValue> for Vec<u8> {
     fn from(value: RecordValue) -> Self {
-        let record_type = value.record_type();
-        match value {
-            RecordValue::FeatureLevelRecord(v) => v,
-            RecordValue::TopicRecord(
-                frame_version,
-                value_version,
-                topic_name,
-                topic_id,
-            ) => {
-                let mut bytes = vec![];
-                bytes.put_u8(*frame_version);
-                bytes.put_u8(record_type);
-                bytes.put_u8(*value_version);
-                bytes.extend(topic_name.to_compact_string());
-                bytes.extend((*topic_id).as_bytes());
-                bytes.put_u8(*TagBuffer::zero());
-                bytes
-            }
-            RecordValue::PartitionRecord(
-                frame_version,
-                value_version,
-                partition_index,
-                topic_id,
-                leader,
-                leader_epoch,
-                partition_epoch,
-                replica_nodes,
-                isr_nodes,
-                adding_replicas,
-                removing_replicas,
-                directrories,
-            ) => {
-                let mut bytes = vec![];
-                bytes.put_u8(*frame_version);
-                bytes.put_u8(record_type);
-                bytes.put_u8(*value_version);
-                bytes.put_u32(*partition_index);
-                bytes.extend((*topic_id).as_bytes());
-                //todo refactor
-                bytes.extend(
-                    replica_nodes
-                        .into_iter()
-                        .map(|v| **v)
-                        .collect::<Vec<u32>>()
-                        .to_pb_array()
-                        .unwrap(),
-                );
-                bytes.extend(
-                    isr_nodes
-                        .into_iter()
-                        .map(|v| **v)
-                        .collect::<Vec<u32>>()
-                        .to_pb_array()
-                        .unwrap(),
-                );
-                bytes.extend(
-                    removing_replicas
-                        .into_iter()
-                        .map(|v| **v)
-                        .collect::<Vec<u32>>()
-                        .to_pb_array()
-                        .unwrap(),
-                );
-                bytes.extend(
-                    adding_replicas
-                        .into_iter()
-                        .map(|v| **v)
-                        .collect::<Vec<u32>>()
-                        .to_pb_array()
-                        .unwrap(),
-                );
-
-                bytes.put_u32(**leader);
-                bytes.put_u32(*leader_epoch);
-                bytes.put_u32(*partition_epoch);
-                bytes.extend(
-                    directrories
-                        .into_iter()
-                        .map(|v| *v)
-                        .collect::<Vec<Uuid>>()
-                        .to_pb_array()
-                        .unwrap(),
-                );
-
-                bytes.put_u8(*TagBuffer::zero());
-                bytes
-            }
-            RecordValue::RawValue(v) => v,
+        fn from1<T: Into<Vec<u8>> + Clone>(v: &T) -> Vec<u8> {
+            T::into(v.clone())
         }
+        value.fold(from1, from1, from1, from1)
     }
 }
 
@@ -667,7 +712,7 @@ mod tests {
     }
     #[test]
     fn test_batch() {
-        let bytes_str =  "00 00 00 00  00 00 00 00  00 00 00 44  00 00 00 00  02 ab fd 04  91 00 00 00  00 00 00 00  00 01 91 e0  5b 6d 8b 00  00 01 91 e0  5b 6d 8b 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  01 24 00 00  00 01 18 48  65 6c 6c 6f  20 4b 61 66  6b 61 21 00  00 00 00 00  00 00 00 01  00 00 00 52  00 00 00 00  02 8b aa 87  2a 00 00 00  00 00 00 00  00 01 91 e0  5b 6d 8b 00  00 01 91 e0  5b 6d 8b 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  01 40 00 00  00 01 34 48  65 6c 6c 6f  20 52 65 76  65 72 73 65  20 45 6e 67  69 6e 65 65  72 69 6e 67  21 00";
+        let bytes_str = "00 00 00 00  00 00 00 00  00 00 00 44  00 00 00 00  02 ab fd 04  91 00 00 00  00 00 00 00  00 01 91 e0  5b 6d 8b 00  00 01 91 e0  5b 6d 8b 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  01 24 00 00  00 01 18 48  65 6c 6c 6f  20 4b 61 66  6b 61 21 00  00 00 00 00  00 00 00 01  00 00 00 52  00 00 00 00  02 8b aa 87  2a 00 00 00  00 00 00 00  00 01 91 e0  5b 6d 8b 00  00 01 91 e0  5b 6d 8b 00  00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  01 40 00 00  00 01 34 48  65 6c 6c 6f  20 52 65 76  65 72 73 65  20 45 6e 67  69 6e 65 65  72 69 6e 67  21 00";
         let byte_vec = decode(bytes_str.clone().replace(" ", "")).unwrap();
         let batches = Batch::split_by_batch(byte_vec.clone()).unwrap();
         let bytes2: Vec<u8> = batches
